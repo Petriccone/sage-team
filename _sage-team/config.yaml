@@ -1,0 +1,61 @@
+# ─── Sage Team Configuration ─────────────────────────────────────────────────
+# This file defines the default configuration for the Sage Team simulation.
+
+company:
+  name: "Sage Team"
+  mission: "Build great software autonomously"
+  version: "2.0.0"
+
+agents:
+  count: 11
+  autonomy_level: "full"
+  max_concurrent: 11
+
+engine:
+  tick_interval_ms: 3000
+  team_interaction_every: 8    # ticks
+  skill_activation_every: 12   # ticks
+  decision_every: 15           # ticks
+
+sprint:
+  duration_days: 14
+  working_hours_start: 9
+  working_hours_end: 18
+
+claude:
+  default_model: "claude-sonnet-4-20250514"
+  max_tokens: 4096
+
+skills:
+  sources:
+    - name: "Superpowers"
+      prefix: "sp-"
+      url: "https://github.com/obra/superpowers"
+      count: 7
+    - name: "Antigravity"
+      prefix: "ag-"
+      url: "https://github.com/Petriccone/antigravity-awesome-skills"
+      count: 18
+    - name: "Built-in"
+      prefix: "bi-"
+      count: 2
+
+visual:
+  office_width: 52
+  office_height: 17
+  dashboard_refresh_ms: 500
+  enable_animations: true
+
+playwright:
+  headless: true
+  viewport_width: 1280
+  viewport_height: 720
+  screenshots_dir: ".sage-team/screenshots"
+
+buffers:
+  max_events: 500
+  trim_events_to: 300
+  max_memory_per_agent: 100
+  trim_memory_to: 80
+  max_autonomy_log: 200
+  trim_autonomy_log_to: 150

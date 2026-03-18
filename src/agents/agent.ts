@@ -302,25 +302,25 @@ export class Agent extends EventEmitter {
 
   getStatusIcon(): string {
     const icons: Record<AgentStatus, string> = {
-      idle: '💤',
-      thinking: '🤔',
-      coding: '💻',
-      reviewing: '👀',
-      testing: '🧪',
-      deploying: '🚀',
-      meeting: '🗣️',
-      break: '☕',
-      'pair-programming': '👥',
-      researching: '📚',
-      'writing-docs': '📝',
-      debugging: '🐛',
-      brainstorming: '💡',
-      planning: '📐',
-      'executing-skill': '⚡',
-      'security-audit': '🛡️',
-      dispatching: '📡',
+      idle: '[zz]',
+      thinking: '[..]',
+      coding: '[>>]',
+      reviewing: '[oo]',
+      testing: '[VX]',
+      deploying: '[=>]',
+      meeting: '[<>]',
+      break: '[__]',
+      'pair-programming': '[oO]',
+      researching: '[=~]',
+      'writing-docs': '[_/]',
+      debugging: '[?!]',
+      brainstorming: '[**]',
+      planning: '[|-]',
+      'executing-skill': '[^^]',
+      'security-audit': '[#?]',
+      dispatching: '[~>]',
     };
-    return icons[this.state.status] || '❓';
+    return icons[this.state.status] || '[??]';
   }
 
   getStatusText(): string {

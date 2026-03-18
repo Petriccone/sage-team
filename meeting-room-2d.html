@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sage Team — Sala de Reunião 2D</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0f0f1a;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    color: #e0e0e0;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #1a1a3e, #2d1b69);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #6366f1;
+    box-shadow: 0 2px 20px rgba(99, 102, 241, 0.3);
+  }
+
+  .header h1 {
+    font-size: 18px;
+    color: #a5b4fc;
+    letter-spacing: 1px;
+  }
+
+  .header h1 span { color: #fbbf24; }
+
+  .header .status {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: #9ca3af;
+  }
+
+  .header .status .live {
+    color: #34d399;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .main {
+    display: flex;
+    height: calc(100vh - 50px);
+  }
+
+  /* ─── Office Map (Left) ─── */
+  .office-container {
+    flex: 0 0 65%;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .office-label {
+    font-size: 13px;
+    color: #6366f1;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .office-floor {
+    position: relative;
+    background: #141425;
+    border: 1px solid #2d2d5e;
+    border-radius: 12px;
+    flex: 1;
+    overflow: hidden;
+    box-shadow: inset 0 0 60px rgba(99, 102, 241, 0.05);
+  }
+
+  /* Grid pattern */
+  .office-floor::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  /* ─── Rooms ─── */
+  .room {
+    position: absolute;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+  }
+
+  .room .room-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    opacity: 0.6;
+    position: absolute;
+    top: 4px;
+    left: 6px;
+  }
+
+  .room-office {
+    background: rgba(30, 30, 60, 0.7);
+    border: 1px solid rgba(99, 102, 241, 0.15);
+  }
+
+  .room-desk {
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 30px;
+    height: 6px;
+    background: #3b3b6e;
+    border-radius: 2px;
+  }
+
+  /* ─── Meeting Room (THE STAR) ─── */
+  .meeting-room {
+    background: rgba(99, 102, 241, 0.08);
+    border: 2px solid rgba(99, 102, 241, 0.4);
+    box-shadow:
+      0 0 30px rgba(99, 102, 241, 0.1),
+      inset 0 0 30px rgba(99, 102, 241, 0.05);
+    animation: meetingGlow 4s ease-in-out infinite;
+  }
+
+  @keyframes meetingGlow {
+    0%, 100% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.1), inset 0 0 30px rgba(99, 102, 241, 0.05); }
+    50% { box-shadow: 0 0 50px rgba(99, 102, 241, 0.25), inset 0 0 40px rgba(99, 102, 241, 0.1); }
+  }
+
+  .meeting-room .room-label {
+    color: #818cf8;
+    opacity: 1;
+    font-size: 10px;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+
+  /* Meeting table */
+  .meeting-table {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100px;
+    height: 40px;
+    background: linear-gradient(135deg, #2a2a5e, #1e1e4a);
+    border: 1px solid #4f46e5;
+    border-radius: 20px;
+    box-shadow: 0 4px 15px rgba(79, 70, 229, 0.2);
+  }
+
+  .meeting-table::after {
+    content: '📊';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 16px;
+    opacity: 0.5;
+  }
+
+  /* ─── Chairs around table ─── */
+  .chair {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    background: #2d2d5e;
+    border: 1px solid #4f46e5;
+    border-radius: 50%;
+  }
+
+  /* ─── Agent Avatar ─── */
+  .agent {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  }
+
+  .agent::after {
+    content: attr(data-name);
+    position: absolute;
+    bottom: -14px;
+    font-size: 8px;
+    font-weight: 700;
+    color: inherit;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+
+  .agent.in-meeting {
+    animation: agentBob 3s ease-in-out infinite;
+  }
+
+  @keyframes agentBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+  }
+
+  .agent:hover {
+    transform: scale(1.3);
+    z-index: 100;
+  }
+
+  .agent .status-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid #141425;
+  }
+
+  .agent .talk-bubble {
+    position: absolute;
+    top: -24px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+  }
+
+  .agent.talking .talk-bubble {
+    opacity: 1;
+    animation: talkAnim 1.5s ease-in-out infinite;
+  }
+
+  @keyframes talkAnim {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+
+  /* ─── Hallway / Lounge ─── */
+  .hallway {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.01);
+  }
+
+  .lounge {
+    position: absolute;
+    background: rgba(52, 211, 153, 0.05);
+    border: 1px dashed rgba(52, 211, 153, 0.15);
+    border-radius: 8px;
+  }
+
+  .lounge .room-label { color: #34d399; }
+
+  /* ─── Right Panel ─── */
+  .panel {
+    flex: 0 0 35%;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+  }
+
+  .panel-card {
+    background: #1a1a2e;
+    border: 1px solid #2d2d5e;
+    border-radius: 10px;
+    padding: 14px;
+  }
+
+  .panel-card h3 {
+    font-size: 12px;
+    color: #818cf8;
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Chat messages */
+  .chat-log {
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .chat-msg {
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(99, 102, 241, 0.06);
+    border-left: 2px solid var(--agent-color, #6366f1);
+    animation: fadeIn 0.4s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .chat-msg .sender {
+    font-weight: 700;
+    color: var(--agent-color, #818cf8);
+  }
+
+  .chat-msg .text { color: #c4c4dc; }
+
+  /* Agent list */
+  .agent-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(99, 102, 241, 0.06);
+  }
+
+  .agent-row .emoji { font-size: 16px; }
+  .agent-row .name { font-weight: 600; flex: 1; }
+  .agent-row .role { color: #6b7280; font-size: 10px; }
+
+  .agent-row .status-badge {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .status-meeting { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
+  .status-idle { background: rgba(107, 114, 128, 0.15); color: #9ca3af; }
+  .status-coding { background: rgba(52, 211, 153, 0.15); color: #6ee7b7; }
+
+  /* Topic card */
+  .topic {
+    text-align: center;
+    padding: 12px;
+  }
+
+  .topic .icon { font-size: 28px; margin-bottom: 6px; }
+
+  .topic .title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #e0e7ff;
+    margin-bottom: 4px;
+  }
+
+  .topic .desc {
+    font-size: 11px;
+    color: #9ca3af;
+  }
+
+  /* Timer */
+  .timer {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: #818cf8;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 2px;
+  }
+
+  .timer-label {
+    font-size: 10px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #4f46e5; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏢 <span>SAGE TEAM</span> — Sala de Reunião 2D</h1>
+  <div class="status">
+    <span class="live">● AO VIVO</span>
+    <span>👥 11 Agentes</span>
+    <span>⚡ Autonomia Total</span>
+  </div>
+</div>
+
+<div class="main">
+  <!-- ─── Office Map ─── -->
+  <div class="office-container">
+    <div class="office-label">🗺️ PLANTA DO ESCRITÓRIO</div>
+    <div class="office-floor" id="office">
+      <!-- Rooms will be dynamically created -->
+    </div>
+  </div>
+
+  <!-- ─── Right Panel ─── -->
+  <div class="panel">
+    <div class="panel-card">
+      <div class="topic">
+        <div class="icon">📋</div>
+        <div class="title">Sprint Planning — Q1 2026</div>
+        <div class="desc">Planejamento de arquitetura e priorização de features</div>
+      </div>
+    </div>
+
+    <div class="panel-card">
+      <div class="timer" id="timer">00:00</div>
+      <div class="timer-label" style="text-align:center">Duração da reunião</div>
+    </div>
+
+    <div class="panel-card">
+      <h3>👥 PARTICIPANTES</h3>
+      <div id="agent-list"></div>
+    </div>
+
+    <div class="panel-card">
+      <h3>💬 CHAT DA REUNIÃO</h3>
+      <div class="chat-log" id="chat-log"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Agent Data ───
+const agents = [
+  { id: 'sage',   name: 'Sage',   role: 'CEO',        emoji: '👑', color: '#fbbf24', desk: { x: 0.48, y: 0.12 } },
+  { id: 'nova',   name: 'Nova',   role: 'CTO',        emoji: '🔬', color: '#a78bfa', desk: { x: 0.65, y: 0.12 } },
+  { id: 'aria',   name: 'Aria',   role: 'Architect',  emoji: '🏛️', color: '#f472b6', desk: { x: 0.12, y: 0.12 } },
+  { id: 'atlas',  name: 'Atlas',  role: 'Data Eng',   emoji: '📊', color: '#60a5fa', desk: { x: 0.88, y: 0.12 } },
+  { id: 'dex',    name: 'Dex',    role: 'Sr. Dev',    emoji: '⚡', color: '#fcd34d', desk: { x: 0.12, y: 0.40 } },
+  { id: 'quinn',  name: 'Quinn',  role: 'QA Lead',    emoji: '🔍', color: '#4ade80', desk: { x: 0.72, y: 0.40 } },
+  { id: 'flux',   name: 'Flux',   role: 'Fullstack',  emoji: '🌊', color: '#22d3ee', desk: { x: 0.12, y: 0.65 } },
+  { id: 'gage',   name: 'Gage',   role: 'DevOps',     emoji: '🚀', color: '#f97316', desk: { x: 0.72, y: 0.65 } },
+  { id: 'morgan', name: 'Morgan', role: 'Product',    emoji: '📋', color: '#c084fc', desk: { x: 0.12, y: 0.88 } },
+  { id: 'river',  name: 'River',  role: 'Scrum',      emoji: '🌀', color: '#2dd4bf', desk: { x: 0.38, y: 0.88 } },
+  { id: 'uma',    name: 'Uma',    role: 'UX Design',  emoji: '🎨', color: '#fb7185', desk: { x: 0.62, y: 0.88 } },
+];
+
+// Room definitions (relative to office floor: x%, y%, w%, h%)
+const rooms = [
+  { id: 'architect', label: 'ARCHITECT', x: 3, y: 3, w: 18, h: 18, type: 'office', agent: 'aria' },
+  { id: 'ceo',       label: 'CEO',       x: 30, y: 3, w: 14, h: 18, type: 'office', agent: 'sage' },
+  { id: 'cto',       label: 'CTO',       x: 50, y: 3, w: 16, h: 18, type: 'office', agent: 'nova' },
+  { id: 'data',      label: 'DATA',      x: 80, y: 3, w: 16, h: 18, type: 'office', agent: 'atlas' },
+  { id: 'sr-dev',    label: 'SR. DEV',   x: 3, y: 28, w: 18, h: 18, type: 'office', agent: 'dex' },
+  { id: 'qa',        label: 'QA',        x: 62, y: 28, w: 16, h: 18, type: 'office', agent: 'quinn' },
+  { id: 'fullstack', label: 'FULLSTACK', x: 3, y: 53, w: 18, h: 18, type: 'office', agent: 'flux' },
+  { id: 'meeting',   label: '░ MEETING ROOM ░', x: 27, y: 50, w: 28, h: 22, type: 'meeting' },
+  { id: 'devops',    label: 'DEVOPS',    x: 62, y: 53, w: 16, h: 18, type: 'office', agent: 'gage' },
+  { id: 'product',   label: 'PRODUCT',   x: 3, y: 78, w: 18, h: 18, type: 'office', agent: 'morgan' },
+  { id: 'scrum',     label: 'SCRUM',     x: 27, y: 78, w: 16, h: 18, type: 'office', agent: 'river' },
+  { id: 'ux',        label: 'UX',        x: 50, y: 78, w: 16, h: 18, type: 'office', agent: 'uma' },
+  { id: 'lounge',    label: 'LOUNGE ☕',  x: 82, y: 78, w: 15, h: 18, type: 'lounge' },
+];
+
+// Meeting conversation script
+const meetingScript = [
+  { agent: 'sage',   text: 'Bom dia, equipe! Vamos começar o Sprint Planning. 📋' },
+  { agent: 'river',  text: 'Temos 42 story points disponíveis neste sprint.' },
+  { agent: 'morgan', text: 'Prioridade #1: sistema de autenticação OAuth2.' },
+  { agent: 'nova',   text: 'Concordo. Sugiro arquitetura com JWT + refresh tokens.' },
+  { agent: 'aria',   text: 'Podemos usar o padrão hexagonal para isolar a camada de auth.' },
+  { agent: 'dex',    text: 'Vou implementar o backend. Estimo 8 story points.' },
+  { agent: 'flux',   text: 'Cuido do frontend — login, registro e dashboard. 🌊' },
+  { agent: 'quinn',  text: 'Vou preparar os testes E2E e de integração. 🔍' },
+  { agent: 'uma',    text: 'Já tenho wireframes do fluxo de login prontos! 🎨' },
+  { agent: 'gage',   text: 'Configuro o CI/CD pipeline e secrets management. 🚀' },
+  { agent: 'atlas',  text: 'Preparo o schema de dados e analytics de login. 📊' },
+  { agent: 'sage',   text: 'Excelente! Temos o plano. Vamos executar! 👑✨' },
+  { agent: 'nova',   text: 'Lembrem: TDD primeiro. Nenhum código sem teste. 🔬' },
+  { agent: 'river',  text: 'Sprint iniciado! Daily standups às 9h. 🌀' },
+  { agent: 'morgan', text: 'Stakeholders querem demo na sexta. Sem atrasos! 📋' },
+  { agent: 'aria',   text: 'Vou documentar a arquitetura no ADR. 🏛️' },
+  { agent: 'dex',    text: 'Pair programming com Flux amanhã? ⚡' },
+  { agent: 'flux',   text: 'Fechado! Combino com você após a reunião. 🌊' },
+  { agent: 'quinn',  text: 'Preciso dos critérios de aceite para os testes. Morgan?' },
+  { agent: 'morgan', text: 'Te envio até o final do dia! ✅' },
+  { agent: 'sage',   text: 'Reunião encerrada. Bom trabalho, time! 🎯' },
+];
+
+// ─── State ───
+let meetingStarted = false;
+let meetingTime = 0;
+let agentsInMeeting = new Set();
+let currentPositions = {};
+let chatIndex = 0;
+let talkingAgent = null;
+
+const agentEls = {};
+const office = document.getElementById('office');
+
+// ─── Build Office ───
+function buildOffice() {
+  // Create rooms
+  rooms.forEach(r => {
+    const div = document.createElement('div');
+    div.className = r.type === 'meeting' ? 'room meeting-room' :
+                    r.type === 'lounge' ? 'lounge' : 'room room-office';
+    div.style.cssText = `left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%;`;
+    div.innerHTML = `<span class="room-label">${r.label}</span>`;
+
+    if (r.type === 'office') {
+      div.innerHTML += `<div class="room-desk"></div>`;
+    }
+
+    if (r.type === 'meeting') {
+      div.innerHTML += `<div class="meeting-table"></div>`;
+      // Add chairs around the table
+      const chairPositions = [
+        { top: '20%', left: '15%' },
+        { top: '20%', left: '40%' },
+        { top: '20%', left: '65%' },
+        { top: '20%', left: '85%' },
+        { top: '75%', left: '15%' },
+        { top: '75%', left: '40%' },
+        { top: '75%', left: '65%' },
+        { top: '75%', left: '85%' },
+        { top: '48%', left: '5%' },
+        { top: '48%', left: '92%' },
+        { top: '48%', left: '50%' },
+      ];
+      chairPositions.forEach(pos => {
+        const chair = document.createElement('div');
+        chair.className = 'chair';
+        chair.style.cssText = `top:${pos.top};left:${pos.left};transform:translate(-50%,-50%);`;
+        div.appendChild(chair);
+      });
+    }
+
+    office.appendChild(div);
+  });
+
+  // Create agents
+  agents.forEach(a => {
+    const el = document.createElement('div');
+    el.className = 'agent';
+    el.dataset.name = a.name;
+    el.style.color = a.color;
+    el.style.background = `${a.color}22`;
+    el.style.border = `2px solid ${a.color}55`;
+    el.innerHTML = `
+      <span>${a.emoji}</span>
+      <div class="status-dot" style="background:#6b7280"></div>
+      <div class="talk-bubble">💬</div>
+    `;
+
+    // Start at desk
+    currentPositions[a.id] = { x: a.desk.x, y: a.desk.y };
+    el.style.left = `${a.desk.x * 100}%`;
+    el.style.top = `${a.desk.y * 100}%`;
+    el.style.transform = 'translate(-50%, -50%)';
+
+    el.addEventListener('click', () => highlightAgent(a));
+    office.appendChild(el);
+    agentEls[a.id] = el;
+  });
+}
+
+// ─── Agent list panel ───
+function buildAgentList() {
+  const list = document.getElementById('agent-list');
+  agents.forEach(a => {
+    const row = document.createElement('div');
+    row.className = 'agent-row';
+    row.id = `agent-row-${a.id}`;
+    row.innerHTML = `
+      <span class="emoji">${a.emoji}</span>
+      <span class="name" style="color:${a.color}">${a.name}</span>
+      <span class="role">${a.role}</span>
+      <span class="status-badge status-idle" id="badge-${a.id}">idle</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+// ─── Move Agent ───
+function moveAgent(agentId, targetX, targetY, callback) {
+  const el = agentEls[agentId];
+  if (!el) return;
+
+  currentPositions[agentId] = { x: targetX, y: targetY };
+  el.style.left = `${targetX * 100}%`;
+  el.style.top = `${targetY * 100}%`;
+
+  if (callback) setTimeout(callback, 650);
+}
+
+// ─── Meeting Positions (seats around the table) ───
+function getMeetingSeat(index) {
+  const meetingRoom = rooms.find(r => r.id === 'meeting');
+  const cx = meetingRoom.x + meetingRoom.w / 2;
+  const cy = meetingRoom.y + meetingRoom.h / 2;
+
+  const seats = [
+    { x: cx - 10, y: cy - 7 },  // top-left
+    { x: cx - 3,  y: cy - 7 },  // top-center
+    { x: cx + 4,  y: cy - 7 },  // top-right
+    { x: cx + 10, y: cy - 7 },  // top-far-right
+    { x: cx - 10, y: cy + 7 },  // bottom-left
+    { x: cx - 3,  y: cy + 7 },  // bottom-center
+    { x: cx + 4,  y: cy + 7 },  // bottom-right
+    { x: cx + 10, y: cy + 7 },  // bottom-far-right
+    { x: cx - 13, y: cy },      // left
+    { x: cx + 13, y: cy },      // right
+    { x: cx,      y: cy },      // center (presenter)
+  ];
+
+  const seat = seats[index % seats.length];
+  return { x: seat.x / 100, y: seat.y / 100 };
+}
+
+// ─── Update Status ───
+function setAgentStatus(agentId, status) {
+  const badge = document.getElementById(`badge-${agentId}`);
+  if (badge) {
+    badge.textContent = status;
+    badge.className = `status-badge status-${status}`;
+  }
+
+  const dot = agentEls[agentId]?.querySelector('.status-dot');
+  if (dot) {
+    const colors = {
+      meeting: '#818cf8',
+      idle: '#6b7280',
+      coding: '#34d399',
+    };
+    dot.style.background = colors[status] || '#6b7280';
+  }
+}
+
+// ─── Chat ───
+function addChat(agentId, text) {
+  const agent = agents.find(a => a.id === agentId);
+  if (!agent) return;
+
+  const log = document.getElementById('chat-log');
+  const msg = document.createElement('div');
+  msg.className = 'chat-msg';
+  msg.style.setProperty('--agent-color', agent.color);
+  msg.innerHTML = `<span class="sender">${agent.emoji} ${agent.name}:</span> <span class="text">${text}</span>`;
+  log.appendChild(msg);
+  log.scrollTop = log.scrollHeight;
+
+  // Make agent "talk"
+  talkingAgent = agentId;
+  const el = agentEls[agentId];
+  if (el) el.classList.add('talking');
+  setTimeout(() => {
+    if (el) el.classList.remove('talking');
+  }, 2000);
+}
+
+function highlightAgent(agent) {
+  // Brief visual highlight
+  const el = agentEls[agent.id];
+  if (el) {
+    el.style.boxShadow = `0 0 20px ${agent.color}`;
+    setTimeout(() => { el.style.boxShadow = ''; }, 1000);
+  }
+}
+
+// ─── Timer ───
+function updateTimer() {
+  meetingTime++;
+  const m = String(Math.floor(meetingTime / 60)).padStart(2, '0');
+  const s = String(meetingTime % 60).padStart(2, '0');
+  document.getElementById('timer').textContent = `${m}:${s}`;
+}
+
+// ─── Simulation Flow ───
+function startSimulation() {
+  buildOffice();
+  buildAgentList();
+
+  // Phase 1: Agents walk to meeting room one by one
+  let delay = 500;
+  agents.forEach((agent, i) => {
+    setTimeout(() => {
+      const seat = getMeetingSeat(i);
+      moveAgent(agent.id, seat.x, seat.y);
+      agentsInMeeting.add(agent.id);
+      setAgentStatus(agent.id, 'meeting');
+      agentEls[agent.id]?.classList.add('in-meeting');
+    }, delay);
+    delay += 400;
+  });
+
+  // Phase 2: Start meeting conversation
+  setTimeout(() => {
+    meetingStarted = true;
+    setInterval(updateTimer, 1000);
+
+    // Play chat messages
+    function nextMessage() {
+      if (chatIndex >= meetingScript.length) {
+        // Meeting ends — agents return to desks
+        setTimeout(() => {
+          agents.forEach((agent, i) => {
+            setTimeout(() => {
+              moveAgent(agent.id, agent.desk.x, agent.desk.y);
+              setAgentStatus(agent.id, 'coding');
+              agentEls[agent.id]?.classList.remove('in-meeting');
+            }, i * 300);
+          });
+        }, 2000);
+        return;
+      }
+
+      const msg = meetingScript[chatIndex];
+      addChat(msg.agent, msg.text);
+      chatIndex++;
+
+      const nextDelay = 2500 + Math.random() * 1500;
+      setTimeout(nextMessage, nextDelay);
+    }
+
+    nextMessage();
+  }, delay + 800);
+}
+
+// ─── Boot ───
+startSimulation();
+</script>
+
+</body>
+</html>

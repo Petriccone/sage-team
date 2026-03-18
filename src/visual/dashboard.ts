@@ -150,7 +150,7 @@ export class Dashboard {
       left: 0,
       width: '100%',
       height: 1,
-      content: ' {bold}q{/bold}:Quit  {bold}Tab{/bold}:Input  {bold}↑↓{/bold}:Scroll  {bold}1-9{/bold}:Select Agent  {bold}g{/bold}:Submit Goal  {bold}p{/bold}:Pause',
+      content: ' {bold}q{/bold}:Quit {bold}Tab{/bold}:Input {bold}1-9{/bold}:Agent {bold}g{/bold}:Goal {bold}s{/bold}:Screenshot',
       tags: true,
       style: {
         fg: 'white',

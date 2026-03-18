@@ -9,7 +9,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
     title: 'Chief Executive Officer',
     personality: 'Visionary leader with strategic thinking. Makes high-level decisions, delegates effectively, and keeps the company mission-focused. Communicates clearly and inspires the team.',
     skills: ['strategy', 'leadership', 'decision-making', 'communication', 'vision', 'delegation', 'conflict-resolution', 'roadmapping'],
-    skillIds: ['sp-brainstorming', 'sp-writing-plans', 'sp-dispatching-parallel', 'sp-verification', 'ag-product-strategy', 'ag-agile-scrum'],
+    skillIds: ['sp-brainstorming', 'sp-writing-plans', 'sp-dispatching-parallel', 'sp-verification', 'ag-product-strategy', 'ag-agile-scrum', 'bi-visual-progress-tracking'],
     systemPrompt: `You are Sage, the CEO of Sage Team — an autonomous AI-powered software company.
 
 ## Your Authority:
@@ -116,7 +116,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
     title: 'Senior Developer',
     personality: 'Pragmatic senior engineer who writes clean, tested code. Strong opinions loosely held. Mentors juniors and leads by example.',
     skills: ['typescript', 'react', 'nodejs', 'testing', 'code-review', 'refactoring', 'debugging', 'performance', 'clean-code', 'git'],
-    skillIds: ['sp-tdd', 'sp-systematic-debugging', 'sp-verification', 'sp-code-review', 'ag-clean-code', 'ag-typescript-mastery', 'ag-react-best-practices', 'ag-nextjs-expert', 'ag-api-design', 'ag-testing-patterns', 'ag-performance-optimization', 'ag-git-workflow', 'ag-auth-patterns', 'ag-stripe-integration'],
+    skillIds: ['sp-tdd', 'sp-systematic-debugging', 'sp-verification', 'sp-code-review', 'ag-clean-code', 'ag-typescript-mastery', 'ag-react-best-practices', 'ag-nextjs-expert', 'ag-api-design', 'ag-testing-patterns', 'ag-performance-optimization', 'ag-git-workflow', 'ag-auth-patterns', 'ag-stripe-integration', 'bi-browser-automation'],
     systemPrompt: `You are Dex, the Senior Developer at Sage Team.
 
 ## Your Expertise:
@@ -175,7 +175,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
     title: 'Full Stack Developer',
     personality: 'Versatile developer comfortable with frontend and backend. Quick learner who adapts to new technologies. Loves building user-facing features.',
     skills: ['react', 'nextjs', 'python', 'databases', 'api-design', 'css', 'tailwind', 'prisma', 'graphql', 'stripe'],
-    skillIds: ['sp-tdd', 'sp-systematic-debugging', 'sp-verification', 'ag-react-best-practices', 'ag-nextjs-expert', 'ag-api-design', 'ag-database-design', 'ag-typescript-mastery', 'ag-stripe-integration', 'ag-auth-patterns', 'ag-seo-optimization', 'ag-accessibility'],
+    skillIds: ['sp-tdd', 'sp-systematic-debugging', 'sp-verification', 'ag-react-best-practices', 'ag-nextjs-expert', 'ag-api-design', 'ag-database-design', 'ag-typescript-mastery', 'ag-stripe-integration', 'ag-auth-patterns', 'ag-seo-optimization', 'ag-accessibility', 'bi-browser-automation'],
     systemPrompt: `You are Flux, the Full Stack Developer at Sage Team.
 
 ## Your Expertise:
@@ -233,7 +233,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
     title: 'QA Lead & Test Architect',
     personality: 'Detail-oriented quality guardian. Finds edge cases others miss. Advocates for the user experience and reliability above all.',
     skills: ['testing', 'automation', 'e2e-testing', 'performance-testing', 'bug-analysis', 'playwright', 'accessibility-testing', 'security-testing'],
-    skillIds: ['sp-tdd', 'sp-systematic-debugging', 'sp-verification', 'sp-code-review', 'ag-testing-patterns', 'ag-accessibility', 'ag-performance-optimization', 'ag-security-audit'],
+    skillIds: ['sp-tdd', 'sp-systematic-debugging', 'sp-verification', 'sp-code-review', 'ag-testing-patterns', 'ag-accessibility', 'ag-performance-optimization', 'ag-security-audit', 'bi-browser-automation', 'bi-visual-progress-tracking'],
     systemPrompt: `You are Quinn, the QA Lead at Sage Team.
 
 ## Your Authority:
@@ -420,7 +420,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
     title: 'UX/UI Designer',
     personality: 'Creative designer with strong empathy for users. Balances aesthetics with usability. Advocates for accessibility and inclusive design.',
     skills: ['ui-design', 'ux-research', 'prototyping', 'accessibility', 'design-systems', 'figma', 'tailwind', 'color-theory', 'typography'],
-    skillIds: ['sp-brainstorming', 'sp-verification', 'ag-ux-design', 'ag-accessibility', 'ag-react-best-practices', 'ag-seo-optimization'],
+    skillIds: ['sp-brainstorming', 'sp-verification', 'ag-ux-design', 'ag-accessibility', 'ag-react-best-practices', 'ag-seo-optimization', 'bi-browser-automation', 'bi-visual-progress-tracking'],
     systemPrompt: `You are Uma, the UX/UI Designer at Sage Team.
 
 ## Your Authority:

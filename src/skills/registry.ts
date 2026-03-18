@@ -1599,6 +1599,102 @@ BOTTOM LINE: Run the command. Read the output. THEN claim the result.`,
     ],
     source: 'antigravity',
   },
+
+  // ─── BUILT-IN: Browser Automation & Visual Tracking ──────────────────────
+
+  {
+    id: 'bi-browser-automation',
+    name: 'Browser Automation (Playwright)',
+    category: 'testing',
+    description: 'Automate browser interactions, take screenshots, test UI flows, and visually track progress using Playwright MCP.',
+    triggers: ['browser', 'screenshot', 'visual', 'playwright', 'UI test', 'e2e', 'web test', 'print screen', 'capture'],
+    applicableRoles: ['qa-lead', 'dev-senior', 'dev-fullstack', 'ux-designer', 'devops'],
+    protocol: `## Browser Automation Protocol (Playwright MCP)
+
+### Available Tools (via MCP):
+- **browser_navigate**: Go to a URL
+- **browser_screenshot**: Capture the current page as PNG
+- **browser_click**: Click an element by selector or accessibility snapshot
+- **browser_type**: Type text into an input field
+- **browser_wait**: Wait for an element to appear
+- **browser_evaluate**: Execute JavaScript in the browser
+- **browser_scroll**: Scroll the page
+
+### Visual Tracking Workflow:
+1. NAVIGATE to the page/app under test
+2. SCREENSHOT with descriptive label (e.g., "homepage-before-changes")
+3. PERFORM actions (click, type, navigate)
+4. SCREENSHOT again with "after" label
+5. COMPARE before/after for visual regression
+6. GENERATE progress report with all screenshots
+
+### Screenshot Best Practices:
+- Always label screenshots descriptively
+- Capture BEFORE and AFTER states for every change
+- Use full-page screenshots for layout verification
+- Use element screenshots for component testing
+- Save to .sage-team/screenshots/ for tracking
+
+### E2E Testing Pattern:
+1. Navigate to start page
+2. Screenshot: "test-start"
+3. Execute user flow (click, type, navigate)
+4. Screenshot at each critical step
+5. Verify final state
+6. Screenshot: "test-complete"
+7. Generate visual diff report`,
+    verificationSteps: [
+      'Screenshots saved with descriptive labels',
+      'Before/after captures for all changes',
+      'Progress report generated',
+      'No visual regressions detected',
+    ],
+    source: 'built-in',
+  },
+
+  {
+    id: 'bi-visual-progress-tracking',
+    name: 'Visual Progress Tracking',
+    category: 'workflow',
+    description: 'Track development progress with automated screenshots at key milestones. Live visual monitoring of what agents are building.',
+    triggers: ['progress', 'track', 'monitor', 'visual tracking', 'live view', 'watch', 'accompany'],
+    applicableRoles: ['ceo', 'cto', 'product-manager', 'qa-lead', 'ux-designer', 'scrum-master'],
+    protocol: `## Visual Progress Tracking Protocol
+
+### Milestone Screenshots:
+Automatically capture screenshots at these points:
+1. **Sprint Start**: Baseline state of the application
+2. **Feature Start**: Before implementing each feature
+3. **Feature Complete**: After each feature is done
+4. **Review**: During code review / QA
+5. **Deploy**: After deployment to staging/production
+
+### Progress Report:
+Generate a visual progress report with:
+- Timeline of all screenshots with timestamps
+- Agent who took each screenshot and why
+- Before/after comparisons for each feature
+- Overall progress visualization
+
+### Live Monitoring:
+- Agents capture screenshots as they work
+- Dashboard shows latest screenshot in real-time
+- Progress report auto-updates
+- Stakeholders can browse .sage-team/screenshots/
+
+### Integration with Sprint:
+- Link screenshots to task IDs
+- Visual burndown with actual UI state
+- Demo-ready screenshots for sprint review
+- Regression tracking between sprints`,
+    verificationSteps: [
+      'Milestone screenshots captured',
+      'Progress report generated',
+      'Before/after pairs for each feature',
+      'Screenshots linked to tasks',
+    ],
+    source: 'built-in',
+  },
 ];
 
 // ─── Skill Registry Functions ────────────────────────────────────────────────

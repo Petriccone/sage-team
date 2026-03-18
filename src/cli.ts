@@ -241,7 +241,71 @@ program
     }
 
     console.log(renderSuccess(`Platform: ${process.platform}`));
+
+    // Check Playwright
+    try {
+      require.resolve('playwright-core');
+      console.log(renderSuccess('Playwright installed'));
+    } catch {
+      console.log(renderError('Playwright not installed — run: npm install playwright-core'));
+    }
+
+    // Check MCP config
+    const mcpPath = require('path').join(process.cwd(), '.mcp.json');
+    if (require('fs').existsSync(mcpPath)) {
+      console.log(renderSuccess('MCP Playwright configured (.mcp.json)'));
+    } else {
+      console.log(renderInfo('MCP not configured — optional for visual tracking'));
+    }
+
     console.log('');
+  });
+
+program
+  .command('screenshot')
+  .description('Take a screenshot of a URL for visual tracking')
+  .argument('<url>', 'URL to capture')
+  .option('-l, --label <label>', 'Screenshot label', 'manual')
+  .option('-f, --full-page', 'Capture full page', false)
+  .option('-a, --agent <id>', 'Agent taking the screenshot', 'system')
+  .action(async (url, options) => {
+    const { PlaywrightBridge } = await import('./browser/playwright-bridge');
+    const bridge = new PlaywrightBridge(process.cwd());
+
+    const spinner = ora('Connecting to browser...').start();
+    const connected = await bridge.connect();
+
+    if (!connected) {
+      spinner.fail('Could not connect to browser. Ensure Chromium is installed.');
+      console.log(renderInfo('Run: npx playwright install chromium'));
+      process.exit(1);
+    }
+
+    spinner.text = `Capturing ${url}...`;
+    const result = await bridge.screenshot({
+      url,
+      label: options.label,
+      fullPage: options.fullPage,
+      agentId: options.agent,
+    });
+
+    if (result) {
+      spinner.succeed(`Screenshot saved: ${result.path}`);
+    } else {
+      spinner.fail('Screenshot failed');
+    }
+
+    await bridge.disconnect();
+  });
+
+program
+  .command('report')
+  .description('Generate visual progress report from screenshots')
+  .action(async () => {
+    const { PlaywrightBridge } = await import('./browser/playwright-bridge');
+    const bridge = new PlaywrightBridge(process.cwd());
+    const report = await bridge.generateProgressReport();
+    console.log(report);
   });
 
 function sleep(ms: number): Promise<void> {

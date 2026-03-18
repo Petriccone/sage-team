@@ -2,6 +2,7 @@ import { EventEmitter } from 'eventemitter3';
 import { Agent } from '../agents/agent';
 import { AGENT_PERSONAS } from '../agents/personas';
 import { ClaudeClient } from './claude-client';
+import { PlaywrightBridge, ScreenshotResult } from '../browser/playwright-bridge';
 import { getSkillById, getSkillsByTrigger } from '../skills/registry';
 import {
   AgentPersona,
@@ -20,6 +21,7 @@ export class Orchestrator extends EventEmitter {
   public currentSprint: Sprint | null = null;
   public events: EngineEvent[] = [];
   public metrics: CompanyMetrics;
+  public browser: PlaywrightBridge;
   private claude: ClaudeClient;
   private config: CompanyConfig;
   private running: boolean = false;
@@ -30,6 +32,7 @@ export class Orchestrator extends EventEmitter {
     super();
     this.config = config;
     this.claude = new ClaudeClient(config.apiKey, config.model);
+    this.browser = new PlaywrightBridge(config.projectPath);
     this.metrics = {
       totalTasksCompleted: 0,
       totalLinesOfCode: 0,
@@ -44,6 +47,52 @@ export class Orchestrator extends EventEmitter {
     };
 
     this.initializeAgents();
+    this.setupBrowserListeners();
+  }
+
+  private setupBrowserListeners(): void {
+    this.browser.on('screenshot-taken', (result: ScreenshotResult) => {
+      this.pushEvent({
+        type: 'system',
+        data: {
+          message: `📸 Screenshot captured: "${result.label}" by ${result.agentId}`,
+          screenshot: result,
+        },
+        timestamp: Date.now(),
+      });
+    });
+
+    this.browser.on('navigated', (data: { url: string; title: string; agentId: string }) => {
+      this.pushEvent({
+        type: 'system',
+        data: { message: `🌐 ${data.agentId} navigated to: ${data.title || data.url}` },
+        timestamp: Date.now(),
+      });
+    });
+  }
+
+  async connectBrowser(): Promise<boolean> {
+    const connected = await this.browser.connect();
+    if (connected) {
+      this.pushEvent({
+        type: 'system',
+        data: { message: '🎭 Playwright browser connected — visual tracking active' },
+        timestamp: Date.now(),
+      });
+    }
+    return connected;
+  }
+
+  async takeScreenshot(
+    agentId: string,
+    label: string,
+    url?: string
+  ): Promise<ScreenshotResult | null> {
+    return this.browser.captureProgress(agentId, label, url);
+  }
+
+  async getProgressReport(): Promise<string> {
+    return this.browser.generateProgressReport();
   }
 
   private initializeAgents(): void {

@@ -6,6 +6,7 @@ export { AGENT_PERSONAS, getPersona, getPersonaByRole } from './agents/personas'
 export { Orchestrator } from './engine/orchestrator';
 export { ClaudeClient } from './engine/claude-client';
 export { Dashboard } from './visual/dashboard';
+export { PlaywrightBridge } from './browser/playwright-bridge';
 export { getConfig, setConfig, hasApiKey } from './utils/config';
 export {
   SKILL_REGISTRY,

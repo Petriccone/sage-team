@@ -1,6 +1,6 @@
 {
   "name": "sage-team",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "AI-powered autonomous agent team with real-time 2D visual office simulation. Watch your AI company work.",
   "main": "dist/index.js",
   "bin": {
@@ -11,6 +11,7 @@
     "build": "tsc",
     "dev": "ts-node src/cli.ts",
     "start": "node dist/cli.js",
+    "postinstall": "npx playwright install chromium || echo '⚠️  Chromium install failed. Run: npx playwright install chromium'",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

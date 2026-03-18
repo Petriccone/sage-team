@@ -2,6 +2,7 @@ import { EventEmitter } from 'eventemitter3';
 import { Agent } from '../agents/agent';
 import { AGENT_PERSONAS } from '../agents/personas';
 import { ClaudeClient } from './claude-client';
+import { getSkillById, getSkillsByTrigger } from '../skills/registry';
 import {
   AgentPersona,
   Task,
@@ -10,6 +11,7 @@ import {
   EngineEvent,
   CompanyMetrics,
   AgentStatus,
+  AgentDecision,
 } from '../types';
 
 export class Orchestrator extends EventEmitter {
@@ -37,6 +39,8 @@ export class Orchestrator extends EventEmitter {
       bugsFixed: 0,
       deployments: 0,
       uptime: 99.9,
+      skillsExecuted: 0,
+      autonomousDecisions: 0,
     };
 
     this.initializeAgents();
@@ -94,6 +98,35 @@ export class Orchestrator extends EventEmitter {
         timestamp: Date.now(),
       });
     });
+
+    agent.on('skill-activated', (data) => {
+      this.metrics.skillsExecuted++;
+      this.pushEvent({
+        type: 'skill-activated',
+        agentId: data.agentId,
+        data: { skillId: data.skillId, skillName: data.skillName },
+        timestamp: Date.now(),
+      });
+    });
+
+    agent.on('skill-completed', (data) => {
+      this.pushEvent({
+        type: 'skill-completed',
+        agentId: data.agentId,
+        data: { skillId: data.skillId, verified: data.verified, duration: data.duration },
+        timestamp: Date.now(),
+      });
+    });
+
+    agent.on('autonomous-decision', (data) => {
+      this.metrics.autonomousDecisions++;
+      this.pushEvent({
+        type: 'autonomous-decision',
+        agentId: data.agentId,
+        data: { decision: data.decision, outcome: data.outcome },
+        timestamp: Date.now(),
+      });
+    });
   }
 
   private pushEvent(event: EngineEvent): void {
@@ -108,7 +141,7 @@ export class Orchestrator extends EventEmitter {
     this.running = true;
     this.pushEvent({
       type: 'system',
-      data: { message: 'Sage Team is starting up...' },
+      data: { message: 'Sage Team is starting up... [FULL AUTONOMY MODE]' },
       timestamp: Date.now(),
     });
 
@@ -141,49 +174,81 @@ export class Orchestrator extends EventEmitter {
     if (!this.running) return;
     this.tickCount++;
 
-    // Simulate agent activities
+    // Simulate autonomous agent activities
     for (const [, agent] of this.agents) {
-      this.simulateAgentActivity(agent);
+      this.simulateAutonomousActivity(agent);
     }
 
-    // Periodic team interactions
-    if (this.tickCount % 10 === 0) {
+    // Periodic team interactions with context
+    if (this.tickCount % 8 === 0) {
       this.simulateTeamInteraction();
+    }
+
+    // Periodic skill activations
+    if (this.tickCount % 12 === 0) {
+      this.simulateSkillActivation();
+    }
+
+    // Periodic autonomous decisions
+    if (this.tickCount % 15 === 0) {
+      this.simulateAutonomousDecision();
     }
 
     this.emit('tick', { count: this.tickCount, metrics: this.metrics });
   }
 
-  private simulateAgentActivity(agent: Agent): void {
+  private simulateAutonomousActivity(agent: Agent): void {
     if (agent.state.currentTask) {
-      // Agent is working on a task - cycle through statuses
-      const workStatuses: AgentStatus[] = ['coding', 'thinking', 'researching', 'debugging'];
+      // Agent is working on a task - cycle through contextual statuses
+      const taskContext = this.tasks.find((t) => t.id === agent.state.currentTask);
+      const workStatuses = this.getWorkStatusesForRole(agent.role);
+
       const current = workStatuses.indexOf(agent.status);
       if (current >= 0 && Math.random() > 0.7) {
         const next = workStatuses[(current + 1) % workStatuses.length];
         agent.setStatus(next);
       }
-      // Random chance to complete task
-      if (Math.random() > 0.92) {
+
+      // Task completion with skill-based probability
+      const completionChance = agent.state.activeSkills.some((s) => s.status === 'running') ? 0.88 : 0.92;
+      if (Math.random() > completionChance) {
+        // Complete any running skills first
+        for (const skill of agent.state.activeSkills.filter((s) => s.status === 'running')) {
+          agent.completeSkill(skill.skillId, `Completed ${skill.skillId} successfully`, true);
+        }
         agent.completeTask();
-        this.metrics.totalLinesOfCode += Math.floor(Math.random() * 50) + 10;
+        this.metrics.totalLinesOfCode += Math.floor(Math.random() * 80) + 20;
+
+        // Update task
+        if (taskContext) {
+          taskContext.status = 'done';
+        }
       }
     } else {
-      // Idle agent - pick up a task or do idle activities
-      const idleActivities: AgentStatus[] = ['idle', 'researching', 'break', 'reviewing'];
-      if (Math.random() > 0.8) {
+      // Autonomous idle behavior based on role
+      const idleActivities = this.getIdleActivitiesForRole(agent.role);
+      if (Math.random() > 0.75) {
         const activity = idleActivities[Math.floor(Math.random() * idleActivities.length)];
         agent.setStatus(activity);
       }
 
-      // Try to pick up a task
-      const available = this.tasks.find(
-        (t) => t.status === 'todo' && !t.assignee
-      );
-      if (available && Math.random() > 0.6) {
-        available.assignee = agent.id;
-        available.status = 'in-progress';
-        agent.assignTask(available);
+      // Autonomous task pickup
+      if (agent.state.persona.autonomyConfig.canSelfAssignTasks) {
+        const available = this.findBestTaskForAgent(agent);
+        if (available && Math.random() > 0.5) {
+          available.assignee = agent.id;
+          available.status = 'in-progress';
+          agent.assignTask(available);
+
+          // Auto-activate relevant skills
+          if (available.requiredSkills && available.requiredSkills.length > 0) {
+            for (const skillId of available.requiredSkills.slice(0, agent.state.persona.autonomyConfig.maxConcurrentSkills)) {
+              agent.activateSkill(skillId);
+            }
+          }
+
+          agent.sendMessage('all', `Picking up "${available.title}" — I have the right skills for this.`, 'work');
+        }
       }
     }
 
@@ -198,6 +263,147 @@ export class Orchestrator extends EventEmitter {
     }
   }
 
+  private getWorkStatusesForRole(role: string): AgentStatus[] {
+    const roleStatuses: Record<string, AgentStatus[]> = {
+      'ceo': ['thinking', 'planning', 'meeting', 'dispatching'],
+      'cto': ['thinking', 'reviewing', 'coding', 'security-audit'],
+      'dev-senior': ['coding', 'testing', 'debugging', 'reviewing'],
+      'dev-fullstack': ['coding', 'testing', 'debugging', 'researching'],
+      'qa-lead': ['testing', 'reviewing', 'debugging', 'writing-docs'],
+      'devops': ['deploying', 'debugging', 'coding', 'security-audit'],
+      'product-manager': ['thinking', 'writing-docs', 'brainstorming', 'meeting'],
+      'ux-designer': ['brainstorming', 'coding', 'reviewing', 'researching'],
+      'architect': ['thinking', 'planning', 'writing-docs', 'reviewing'],
+      'scrum-master': ['meeting', 'planning', 'writing-docs', 'thinking'],
+      'data-engineer': ['coding', 'testing', 'researching', 'debugging'],
+    };
+    return roleStatuses[role] || ['coding', 'thinking', 'researching', 'debugging'];
+  }
+
+  private getIdleActivitiesForRole(role: string): AgentStatus[] {
+    const activities: Record<string, AgentStatus[]> = {
+      'ceo': ['thinking', 'meeting', 'brainstorming'],
+      'cto': ['reviewing', 'researching', 'security-audit'],
+      'dev-senior': ['reviewing', 'researching', 'pair-programming'],
+      'dev-fullstack': ['researching', 'reviewing', 'coding'],
+      'qa-lead': ['reviewing', 'testing', 'writing-docs'],
+      'devops': ['researching', 'security-audit', 'break'],
+      'product-manager': ['brainstorming', 'researching', 'writing-docs'],
+      'ux-designer': ['brainstorming', 'researching', 'break'],
+      'architect': ['researching', 'writing-docs', 'reviewing'],
+      'scrum-master': ['meeting', 'writing-docs', 'break'],
+      'data-engineer': ['researching', 'reviewing', 'coding'],
+    };
+    return activities[role] || ['idle', 'researching', 'break'];
+  }
+
+  private findBestTaskForAgent(agent: Agent): Task | undefined {
+    const available = this.tasks.filter((t) => t.status === 'todo' && !t.assignee);
+    if (available.length === 0) return undefined;
+
+    // Score tasks based on skill match
+    const scored = available.map((task) => {
+      let score = 0;
+
+      // Check required skills match
+      if (task.requiredSkills) {
+        const matching = task.requiredSkills.filter((s) =>
+          agent.state.persona.skillIds.includes(s)
+        );
+        score += matching.length * 10;
+      }
+
+      // Priority bonus
+      const priorityScores: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+      score += priorityScores[task.priority] || 1;
+
+      // Check if task description matches agent skills
+      const desc = (task.title + ' ' + task.description).toLowerCase();
+      for (const skill of agent.state.persona.skills) {
+        if (desc.includes(skill.toLowerCase())) score += 5;
+      }
+
+      return { task, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0]?.score > 0 ? scored[0].task : available[0];
+  }
+
+  private simulateSkillActivation(): void {
+    const agents = Array.from(this.agents.values());
+    const busyAgent = agents.find((a) =>
+      a.state.currentTask && a.state.activeSkills.filter((s) => s.status === 'running').length === 0
+    );
+
+    if (busyAgent) {
+      const task = this.tasks.find((t) => t.id === busyAgent.state.currentTask);
+      if (task) {
+        // Auto-detect which skill to activate based on task context
+        const autoSkill = busyAgent.shouldAutoSelectSkill(task.title + ' ' + task.description);
+        if (autoSkill) {
+          busyAgent.activateSkill(autoSkill);
+        } else if (busyAgent.state.persona.skillIds.length > 0) {
+          // Activate a random skill from the agent's arsenal
+          const randomSkill = busyAgent.state.persona.skillIds[
+            Math.floor(Math.random() * busyAgent.state.persona.skillIds.length)
+          ];
+          busyAgent.activateSkill(randomSkill);
+        }
+      }
+    }
+  }
+
+  private simulateAutonomousDecision(): void {
+    const agents = Array.from(this.agents.values());
+    const agent = agents[Math.floor(Math.random() * agents.length)];
+
+    if (!agent.isAutonomous) return;
+
+    const decisions: AgentDecision[] = [
+      {
+        type: 'work',
+        action: `Optimizing current implementation using ${agent.state.persona.skills[0]} expertise`,
+        reasoning: 'Proactively improving code quality',
+        confidence: 0.85,
+      },
+      {
+        type: 'review',
+        action: 'Reviewing recent changes for quality',
+        reasoning: 'Maintaining code standards as part of continuous review',
+        confidence: 0.9,
+      },
+      {
+        type: 'report',
+        action: 'Sharing progress update with team',
+        reasoning: 'Keeping team informed of status',
+        confidence: 0.95,
+      },
+    ];
+
+    if (agent.canDelegate) {
+      decisions.push({
+        type: 'delegate',
+        action: 'Identified subtask that can be handled by a specialist',
+        target: agents[Math.floor(Math.random() * agents.length)].id,
+        reasoning: 'Better skill match for this specific task',
+        confidence: 0.8,
+      });
+    }
+
+    if (agent.canDispatch) {
+      decisions.push({
+        type: 'dispatch',
+        action: 'Breaking work into parallel tasks',
+        reasoning: 'Independent subtasks identified — can run concurrently',
+        confidence: 0.75,
+      });
+    }
+
+    const decision = decisions[Math.floor(Math.random() * decisions.length)];
+    agent.recordDecision(decision, 'success');
+  }
+
   private simulateTeamInteraction(): void {
     const agentList = Array.from(this.agents.values());
     const sender = agentList[Math.floor(Math.random() * agentList.length)];
@@ -205,21 +411,54 @@ export class Orchestrator extends EventEmitter {
 
     if (sender.id === receiver.id) return;
 
-    const interactions = [
-      `Hey ${receiver.name}, can you take a look at this when you have a moment?`,
-      `${receiver.name}, I found an issue with the auth module. Let's sync.`,
-      `Great work on that PR, ${receiver.name}! Clean implementation.`,
-      `@${receiver.name} Sprint velocity is looking good this week.`,
-      `${receiver.name}, I need your input on the database schema.`,
-      `Quick question about the API design, ${receiver.name}?`,
-      `${receiver.name}, tests are passing. Ready for review.`,
-      `Let's do a quick sync about the deployment, ${receiver.name}.`,
-      `${receiver.name}, I've updated the docs for the new feature.`,
-      `Heads up team - deploying v${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 20)}.${Math.floor(Math.random() * 50)} to staging.`,
-    ];
-
+    // Context-aware interactions based on agent roles and skills
+    const interactions = this.getContextualInteractions(sender, receiver);
     const msg = interactions[Math.floor(Math.random() * interactions.length)];
     sender.sendMessage(receiver.id, msg, 'general');
+  }
+
+  private getContextualInteractions(sender: Agent, receiver: Agent): string[] {
+    const senderSkills = sender.getActiveSkillNames();
+    const base = [
+      `${receiver.name}, I'm using my ${sender.state.persona.skills[0]} expertise on this — mind reviewing?`,
+      `Great work on that PR, ${receiver.name}! Clean implementation following our code standards.`,
+      `@${receiver.name} Sprint velocity is up 15% this week. Team is operating well.`,
+    ];
+
+    // Role-specific interactions
+    if (sender.role === 'qa-lead') {
+      base.push(
+        `${receiver.name}, found an edge case in the auth module. Running TDD protocol to write a failing test first.`,
+        `${receiver.name}, all verification steps pass. CONFIRMED with fresh test run. Approving the PR.`,
+        `Heads up ${receiver.name} — test coverage dropped below 80%. Let's fix this before merging.`,
+      );
+    }
+    if (sender.role === 'devops') {
+      base.push(
+        `${receiver.name}, deploying v${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 20)}.${Math.floor(Math.random() * 50)} to staging. Canary at 10%.`,
+        `${receiver.name}, security scan passed. No vulnerabilities detected. Proceeding to production.`,
+        `CI/CD pipeline green across all 10 stages. Ready for deployment approval.`,
+      );
+    }
+    if (sender.role === 'architect') {
+      base.push(
+        `${receiver.name}, wrote an ADR for the new service boundary. Please review before implementation.`,
+        `Proposing event-driven pattern for the notification system. Thoughts, ${receiver.name}?`,
+      );
+    }
+    if (sender.role === 'ceo') {
+      base.push(
+        `Team, I've dispatched parallel tasks to ${receiver.name} and others. Let's move fast on this sprint.`,
+        `${receiver.name}, your autonomous decision-making has been excellent. Keep it up.`,
+      );
+    }
+    if (senderSkills.length > 0) {
+      base.push(
+        `${receiver.name}, currently executing skill: ${senderSkills[0]}. Will share results when verified.`,
+      );
+    }
+
+    return base;
   }
 
   async submitGoal(goal: string): Promise<void> {
@@ -227,9 +466,11 @@ export class Orchestrator extends EventEmitter {
     if (!ceo) return;
 
     ceo.setStatus('thinking');
+    ceo.activateSkill('sp-brainstorming');
+
     this.pushEvent({
       type: 'system',
-      data: { message: `New goal received: "${goal}"` },
+      data: { message: `New goal received: "${goal}" — CEO activating brainstorming protocol` },
       timestamp: Date.now(),
     });
 
@@ -255,6 +496,7 @@ export class Orchestrator extends EventEmitter {
               storyPoints: t.storyPoints || 3,
               subtasks: [],
               dependencies: t.dependencies || [],
+              requiredSkills: t.requiredSkills || [],
             };
             this.tasks.push(task);
 
@@ -264,6 +506,18 @@ export class Orchestrator extends EventEmitter {
               if (agent) {
                 task.status = 'in-progress';
                 agent.assignTask(task);
+
+                // Auto-activate required skills
+                for (const skillId of task.requiredSkills.slice(0, agent.state.persona.autonomyConfig.maxConcurrentSkills)) {
+                  agent.activateSkill(skillId);
+                }
+
+                agent.recordDecision({
+                  type: 'work',
+                  action: `Assigned: ${task.title}`,
+                  reasoning: 'Task delegated by CEO based on skill match',
+                  confidence: 0.9,
+                }, 'pending');
               }
             }
           }
@@ -280,9 +534,25 @@ export class Orchestrator extends EventEmitter {
         }
       }
 
+      ceo.completeSkill('sp-brainstorming', 'Goal decomposed and delegated successfully', true);
       ceo.setStatus('idle');
-      ceo.sendMessage('all', `Team, I've broken down our new goal and assigned tasks. Let's get to work!`, 'announcements');
+
+      // CEO records delegation decision
+      ceo.recordDecision({
+        type: 'dispatch',
+        action: `Decomposed goal into ${this.tasks.length} tasks and dispatched to team`,
+        reasoning: `Matched tasks to agent expertise for optimal execution`,
+        confidence: 0.9,
+      }, 'success');
+
+      ceo.sendMessage('all',
+        `Team, I've analyzed our new goal and dispatched ${this.tasks.length} tasks. ` +
+        `Each of you has been assigned work matching your skills. ` +
+        `Operate autonomously — I trust your expertise. Report blockers immediately.`,
+        'announcements'
+      );
     } catch (error) {
+      ceo.completeSkill('sp-brainstorming', 'Failed', false);
       ceo.setStatus('idle');
       this.pushEvent({
         type: 'system',
@@ -312,8 +582,32 @@ export class Orchestrator extends EventEmitter {
         recentMessages
       );
 
+      // Try to parse decision from response
+      try {
+        const jsonMatch = response.content.match(/```json\n([\s\S]*?)\n```/);
+        if (jsonMatch) {
+          const decision: AgentDecision = JSON.parse(jsonMatch[1]);
+          agent.recordDecision(decision, 'success');
+
+          // Handle delegation
+          if (decision.type === 'delegate' && decision.target) {
+            const target = this.agents.get(decision.target);
+            if (target) {
+              agent.sendMessage(decision.target, decision.action, 'delegation');
+            }
+          }
+
+          // Handle skill execution
+          if (decision.type === 'skill-execute' && decision.skillId) {
+            agent.activateSkill(decision.skillId);
+          }
+        }
+      } catch {
+        // Non-JSON response, that's fine
+      }
+
       agent.setStatus('coding');
-      this.metrics.totalLinesOfCode += Math.floor(Math.random() * 30) + 5;
+      this.metrics.totalLinesOfCode += Math.floor(Math.random() * 50) + 10;
 
       return response.content;
     } catch (error) {
@@ -324,15 +618,24 @@ export class Orchestrator extends EventEmitter {
 
   private getTeamContext(): string {
     const statuses = Array.from(this.agents.values())
-      .map((a) => `${a.emoji} ${a.name} (${a.state.persona.title}): ${a.getStatusText()}`)
+      .map((a) => {
+        const skills = a.getActiveSkillNames();
+        const skillInfo = skills.length > 0 ? ` [Skills: ${skills.join(', ')}]` : '';
+        return `${a.emoji} ${a.name} (${a.state.persona.title}): ${a.getStatusText()}${skillInfo}`;
+      })
       .join('\n');
 
     const taskSummary = this.tasks
       .filter((t) => t.status !== 'done')
-      .map((t) => `- [${t.status}] ${t.title} (assigned: ${t.assignee || 'unassigned'})`)
+      .map((t) => {
+        const skills = t.requiredSkills?.length
+          ? ` (skills: ${t.requiredSkills.join(', ')})`
+          : '';
+        return `- [${t.status}] ${t.title} (assigned: ${t.assignee || 'unassigned'})${skills}`;
+      })
       .join('\n');
 
-    return `## Team Status\n${statuses}\n\n## Active Tasks\n${taskSummary || 'No active tasks.'}`;
+    return `## Team Status\n${statuses}\n\n## Active Tasks\n${taskSummary || 'No active tasks.'}\n\n## Metrics\n- Tasks completed: ${this.metrics.totalTasksCompleted}\n- Skills executed: ${this.metrics.skillsExecuted}\n- Autonomous decisions: ${this.metrics.autonomousDecisions}\n- Team morale: ${this.metrics.teamMorale}%`;
   }
 
   private getRecentMessages(count: number): import('../types').ChatMessage[] {

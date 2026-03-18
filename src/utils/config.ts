@@ -14,6 +14,7 @@ const store = new Conf({
     workingHoursEnd: 18,
     enableVisual: true,
     projectPath: process.cwd(),
+    autonomyLevel: 'full',
   },
 });
 
@@ -29,6 +30,7 @@ export function getConfig(): CompanyConfig {
     workingHoursEnd: store.get('workingHoursEnd') as number,
     enableVisual: store.get('enableVisual') as boolean,
     projectPath: store.get('projectPath') as string,
+    autonomyLevel: (store.get('autonomyLevel') as any) || 'full',
   };
 }
 

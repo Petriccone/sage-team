@@ -8,13 +8,14 @@ import { getConfig, setConfig, hasApiKey } from './utils/config';
 import { Orchestrator } from './engine/orchestrator';
 import { Dashboard } from './visual/dashboard';
 import { AGENT_PERSONAS } from './agents/personas';
+import { SKILL_REGISTRY, getSkillById } from './skills/registry';
 
 const program = new Command();
 
 program
   .name('sage-team')
   .description('AI-powered autonomous agent team with real-time 2D visual office simulation')
-  .version('1.0.0');
+  .version('2.0.0');
 
 program
   .command('start')
@@ -40,10 +41,11 @@ program
 
     const steps = [
       'Initializing company structure...',
-      'Booting agent personas...',
+      'Loading skill registry (25+ world-class skills)...',
+      'Booting agent personas with full autonomy...',
       'Setting up office layout...',
       'Connecting to Claude API...',
-      'Starting agent autonomy loops...',
+      'Activating autonomous decision engine...',
       'Launching visual dashboard...',
     ];
 
@@ -162,6 +164,14 @@ program
       console.log(`  ${persona.emoji} ${chalk.bold(persona.name)} — ${persona.title}`);
       console.log(`  ${chalk.gray(persona.personality)}`);
       console.log(`  ${chalk.cyan('Skills:')} ${persona.skills.join(', ')}`);
+      console.log(`  ${chalk.hex('#6366f1')('Autonomy:')} ${persona.autonomyConfig.level.toUpperCase()}`);
+      console.log(`  ${chalk.hex('#6366f1')('Skill Protocols:')} ${persona.skillIds.length}`);
+      for (const skillId of persona.skillIds) {
+        const skill = getSkillById(skillId);
+        if (skill) {
+          console.log(`    ${chalk.gray('▸')} ${chalk.white(skill.name)} ${chalk.gray(`(${skill.source})`)}`);
+        }
+      }
       console.log('');
       return;
     }
@@ -184,11 +194,16 @@ program
     for (const [dept, members] of Object.entries(departments)) {
       console.log(`  ${chalk.hex('#6366f1').bold(`── ${dept} ──`)}`);
       for (const p of members) {
-        console.log(`    ${p.emoji} ${chalk.bold(p.name.padEnd(8))} ${chalk.gray(p.title)}`);
-        console.log(`      ${chalk.gray(p.skills.slice(0, 4).join(' · '))}`);
+        console.log(`    ${p.emoji} ${chalk.bold(p.name.padEnd(8))} ${chalk.gray(p.title)} ${chalk.green(`[${p.autonomyConfig.level.toUpperCase()}]`)} ${chalk.cyan(`${p.skillIds.length} skills`)}`);
+        console.log(`      ${chalk.gray(p.skills.slice(0, 5).join(' · '))}`);
       }
       console.log('');
     }
+
+    console.log(`  ${chalk.hex('#6366f1').bold('── Skill Registry ──')}`);
+    console.log(`    ${chalk.white(`${SKILL_REGISTRY.length} total skills`)} from ${chalk.cyan('Superpowers')} + ${chalk.yellow('Antigravity')}`);
+    console.log(`    Categories: ${[...new Set(SKILL_REGISTRY.map((s) => s.category))].join(', ')}`);
+    console.log('');
   });
 
 program

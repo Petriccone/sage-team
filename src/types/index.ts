@@ -23,7 +23,12 @@ export type AgentStatus =
   | 'pair-programming'
   | 'researching'
   | 'writing-docs'
-  | 'debugging';
+  | 'debugging'
+  | 'brainstorming'
+  | 'planning'
+  | 'executing-skill'
+  | 'security-audit'
+  | 'dispatching';
 
 export type AgentMood = 'focused' | 'happy' | 'stressed' | 'creative' | 'collaborative';
 
@@ -31,6 +36,72 @@ export interface Position {
   x: number;
   y: number;
 }
+
+// ─── Skill System ───────────────────────────────────────────────────────────
+
+export type SkillCategory =
+  | 'development'
+  | 'testing'
+  | 'architecture'
+  | 'security'
+  | 'devops'
+  | 'data-ai'
+  | 'business'
+  | 'workflow'
+  | 'collaboration'
+  | 'design'
+  | 'debugging'
+  | 'documentation';
+
+export type SkillTrigger = string;
+
+export interface SkillDefinition {
+  id: string;
+  name: string;
+  category: SkillCategory;
+  description: string;
+  triggers: SkillTrigger[];
+  applicableRoles: AgentRole[];
+  protocol: string;
+  verificationSteps: string[];
+  source: 'superpowers' | 'antigravity' | 'built-in';
+}
+
+export interface SkillExecution {
+  skillId: string;
+  agentId: string;
+  startedAt: number;
+  completedAt: number | null;
+  status: 'running' | 'completed' | 'failed' | 'blocked';
+  output: string | null;
+  verificationPassed: boolean;
+}
+
+// ─── Autonomy System ────────────────────────────────────────────────────────
+
+export type AutonomyLevel = 'full' | 'supervised' | 'manual';
+
+export interface AutonomyConfig {
+  level: AutonomyLevel;
+  canSelfAssignTasks: boolean;
+  canDelegateToOthers: boolean;
+  canCreateSubtasks: boolean;
+  canRequestCodeReview: boolean;
+  canDispatchParallelWork: boolean;
+  maxConcurrentSkills: number;
+  requiresApprovalFor: string[];
+}
+
+export interface AgentDecision {
+  type: 'work' | 'delegate' | 'request-help' | 'report' | 'review' | 'brainstorm' | 'dispatch' | 'skill-execute';
+  action: string;
+  target?: string;
+  skillId?: string;
+  reasoning: string;
+  confidence: number;
+}
+
+// ─── Agent Types ────────────────────────────────────────────────────────────
 
 export interface AgentPersona {
   id: string;
@@ -40,7 +111,9 @@ export interface AgentPersona {
   title: string;
   personality: string;
   skills: string[];
+  skillIds: string[];
   systemPrompt: string;
+  autonomyConfig: AutonomyConfig;
   desk: Position;
   color: string;
 }
@@ -50,10 +123,18 @@ export interface AgentState {
   status: AgentStatus;
   mood: AgentMood;
   currentTask: string | null;
+  activeSkills: SkillExecution[];
   position: Position;
   messages: ChatMessage[];
   memory: MemoryEntry[];
   stats: AgentStats;
+  autonomyLog: AutonomyLogEntry[];
+}
+
+export interface AutonomyLogEntry {
+  timestamp: number;
+  decision: AgentDecision;
+  outcome: 'success' | 'failure' | 'pending';
 }
 
 export interface AgentStats {
@@ -62,6 +143,9 @@ export interface AgentStats {
   reviewsDone: number;
   meetingsAttended: number;
   bugsFixed: number;
+  skillsExecuted: number;
+  autonomousDecisions: number;
+  delegationsMade: number;
 }
 
 export interface ChatMessage {
@@ -92,6 +176,7 @@ export interface Task {
   storyPoints: number;
   subtasks: string[];
   dependencies: string[];
+  requiredSkills: string[];
 }
 
 export interface Sprint {
@@ -114,6 +199,7 @@ export interface CompanyConfig {
   workingHoursEnd: number;
   enableVisual: boolean;
   projectPath: string;
+  autonomyLevel: AutonomyLevel;
 }
 
 export interface OfficeTile {
@@ -124,7 +210,17 @@ export interface OfficeTile {
 }
 
 export interface EngineEvent {
-  type: 'agent-status' | 'agent-move' | 'agent-message' | 'task-update' | 'sprint-update' | 'system';
+  type:
+    | 'agent-status'
+    | 'agent-move'
+    | 'agent-message'
+    | 'task-update'
+    | 'sprint-update'
+    | 'system'
+    | 'skill-activated'
+    | 'skill-completed'
+    | 'autonomous-decision'
+    | 'dispatch-parallel';
   agentId?: string;
   data: Record<string, unknown>;
   timestamp: number;
@@ -147,4 +243,6 @@ export interface CompanyMetrics {
   bugsFixed: number;
   deployments: number;
   uptime: number;
+  skillsExecuted: number;
+  autonomousDecisions: number;
 }

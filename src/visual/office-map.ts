@@ -62,4 +62,9 @@ export const STATUS_ANIMATIONS: Record<string, string[]> = {
   'pair-programming': ['[👥💻]'],
   researching: ['[📚 ]', '[📖 ]'],
   'writing-docs': ['[📝 ]', '[✍️  ]'],
+  brainstorming: ['[💡 ]', '[💡💡]', '[✨💡]', '[💡✨]'],
+  planning: ['[📐 ]', '[📐·]', '[📐··]', '[📐✓]'],
+  'executing-skill': ['[⚡ ]', '[⚡⚡]', '[⚡▸]', '[⚡✓]'],
+  'security-audit': ['[🛡️ ]', '[🛡️🔍]', '[🛡️✓]', '[🛡️!]'],
+  dispatching: ['[📡 ]', '[📡→]', '[📡→→]', '[📡✓]'],
 };

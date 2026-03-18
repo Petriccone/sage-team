@@ -4,6 +4,7 @@ import { Orchestrator } from '../engine/orchestrator';
 import { Agent } from '../agents/agent';
 import { getOfficeLines, STATUS_ANIMATIONS, OFFICE_WIDTH, OFFICE_HEIGHT } from './office-map';
 import { CompanyConfig, AgentStatus, Task } from '../types';
+import { getSkillById } from '../skills/registry';
 
 export class Dashboard {
   private screen: blessed.Widgets.Screen;
@@ -42,7 +43,7 @@ export class Dashboard {
       left: 0,
       width: '100%',
       height: 3,
-      content: '{center}{bold}🏢 SAGE TEAM{/bold} — AI Company Simulation{/center}',
+      content: '{center}{bold}🏢 SAGE TEAM{/bold} — Autonomous AI Company [FULL AUTONOMY]{/center}',
       tags: true,
       style: {
         fg: 'white',
@@ -231,6 +232,21 @@ export class Dashboard {
         this.chatBox.log(`{yellow-fg}{bold}⚙ SYSTEM:{/bold} ${(event.data as any).message}{/yellow-fg}`);
       }
 
+      if (event.type === 'skill-activated' && this.chatBox) {
+        const agent = this.orchestrator.getAgent(event.agentId || '');
+        const color = agent?.state.persona.color || 'white';
+        this.chatBox.log(`{${color}-fg}{bold}⚡ ${agent?.emoji || ''} ${agent?.name || ''}{/bold} activated skill: {cyan-fg}${(event.data as any).skillName}{/cyan-fg}{/${color}-fg}`);
+      }
+
+      if (event.type === 'autonomous-decision' && this.chatBox) {
+        const agent = this.orchestrator.getAgent(event.agentId || '');
+        const decision = (event.data as any).decision;
+        if (decision && Math.random() > 0.5) { // Show 50% of decisions to avoid spam
+          const color = agent?.state.persona.color || 'white';
+          this.chatBox.log(`{${color}-fg}{bold}🧠 ${agent?.emoji || ''} ${agent?.name || ''}{/bold} decided: ${decision.action}{/${color}-fg}`);
+        }
+      }
+
       if (event.type === 'task-update') {
         this.renderTaskBoard();
       }
@@ -374,11 +390,31 @@ export class Dashboard {
     content += `{gray-fg}${agent.state.persona.personality.slice(0, 60)}...{/gray-fg}\n\n`;
     content += `{bold}Status:{/bold}  ${agent.getStatusIcon()} ${agent.getStatusText()} ${frame}\n`;
     content += `{bold}Mood:{/bold}    ${agent.state.mood}\n`;
-    content += `{bold}Task:{/bold}    ${agent.state.currentTask || 'None'}\n\n`;
+    content += `{bold}Task:{/bold}    ${agent.state.currentTask || 'None'}\n`;
+    content += `{bold}Autonomy:{/bold} {green-fg}${agent.state.persona.autonomyConfig.level.toUpperCase()}{/green-fg}\n\n`;
+
+    // Active skills
+    const activeSkills = agent.getActiveSkillNames();
+    if (activeSkills.length > 0) {
+      content += `{bold}⚡ Active Skills:{/bold}\n`;
+      for (const name of activeSkills) {
+        content += `  {cyan-fg}▸ ${name}{/cyan-fg}\n`;
+      }
+      content += '\n';
+    }
+
     content += `{bold}── Stats ──{/bold}\n`;
     content += `Tasks: {green-fg}${s.tasksCompleted}{/green-fg}  Lines: {cyan-fg}${s.linesWritten}{/cyan-fg}  Reviews: {yellow-fg}${s.reviewsDone}{/yellow-fg}\n`;
-    content += `Bugs Fixed: {red-fg}${s.bugsFixed}{/red-fg}  Meetings: {magenta-fg}${s.meetingsAttended}{/magenta-fg}\n`;
-    content += `\n{gray-fg}Press 0 to go back{/gray-fg}`;
+    content += `Skills: {magenta-fg}${s.skillsExecuted}{/magenta-fg}  Decisions: {blue-fg}${s.autonomousDecisions}{/blue-fg}  Delegations: {white-fg}${s.delegationsMade}{/white-fg}\n`;
+    content += `\n{bold}🧠 Skills ({/bold}${agent.state.persona.skillIds.length}{bold}):{/bold} `;
+    content += agent.state.persona.skillIds.slice(0, 4).map((id) => {
+      const skill = getSkillById(id);
+      return skill ? `{gray-fg}${skill.name}{/gray-fg}` : '';
+    }).filter(Boolean).join(', ');
+    if (agent.state.persona.skillIds.length > 4) {
+      content += ` {gray-fg}+${agent.state.persona.skillIds.length - 4} more{/gray-fg}`;
+    }
+    content += `\n\n{gray-fg}Press 0 to go back{/gray-fg}`;
 
     this.agentPanel.setContent(content);
   }
@@ -453,10 +489,11 @@ export class Dashboard {
 
     this.statusBar.setContent(
       ` {bold}q{/bold}:Quit {bold}Tab{/bold}:Input {bold}1-9{/bold}:Agent` +
-      `  │  👥 ${activeCount}/${agentCount} active` +
+      `  │  👥 ${activeCount}/${agentCount}` +
       `  │  ✅ ${m.totalTasksCompleted} tasks` +
-      `  │  📝 ${m.totalLinesOfCode} lines` +
-      `  │  😊 ${m.teamMorale}% morale` +
+      `  │  ⚡ ${m.skillsExecuted} skills` +
+      `  │  🧠 ${m.autonomousDecisions} decisions` +
+      `  │  📝 ${m.totalLinesOfCode} LOC` +
       `  │  🚀 ${m.deployments} deploys`
     );
   }

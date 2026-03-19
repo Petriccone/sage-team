@@ -223,24 +223,32 @@ export class Orchestrator extends EventEmitter {
     if (!this.running) return;
     this.tickCount++;
 
-    // Simulate autonomous agent activities
-    for (const [, agent] of this.agents) {
-      this.simulateAutonomousActivity(agent);
-    }
+    try {
+      // Simulate autonomous agent activities
+      for (const [, agent] of this.agents) {
+        try {
+          this.simulateAutonomousActivity(agent);
+        } catch {
+          // Skip agent on error to prevent cascade
+        }
+      }
 
-    // Periodic team interactions with context
-    if (this.tickCount % 8 === 0) {
-      this.simulateTeamInteraction();
-    }
+      // Periodic team interactions with context
+      if (this.tickCount % 8 === 0) {
+        this.simulateTeamInteraction();
+      }
 
-    // Periodic skill activations
-    if (this.tickCount % 12 === 0) {
-      this.simulateSkillActivation();
-    }
+      // Periodic skill activations
+      if (this.tickCount % 12 === 0) {
+        this.simulateSkillActivation();
+      }
 
-    // Periodic autonomous decisions
-    if (this.tickCount % 15 === 0) {
-      this.simulateAutonomousDecision();
+      // Periodic autonomous decisions
+      if (this.tickCount % 15 === 0) {
+        this.simulateAutonomousDecision();
+      }
+    } catch {
+      // Prevent tick errors from crashing the simulation
     }
 
     this.emit('tick', { count: this.tickCount, metrics: this.metrics });
@@ -347,6 +355,17 @@ export class Orchestrator extends EventEmitter {
   }
 
   private findBestTaskForAgent(agent: Agent): Task | undefined {
+    // Prune completed tasks to prevent unbounded growth
+    if (this.tasks.length > 200) {
+      const done = this.tasks.filter((t) => t.status === 'done');
+      if (done.length > 100) {
+        this.tasks = [
+          ...this.tasks.filter((t) => t.status !== 'done'),
+          ...done.slice(-50),
+        ];
+      }
+    }
+
     const available = this.tasks.filter((t) => t.status === 'todo' && !t.assignee);
     if (available.length === 0) return undefined;
 

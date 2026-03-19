@@ -20,6 +20,8 @@ export class Dashboard {
   private animFrame: number = 0;
   private renderInterval: ReturnType<typeof setInterval> | null = null;
   private selectedAgent: string | null = null;
+  private rendering: boolean = false;
+  private lastRenderTime: number = 0;
 
   constructor(orchestrator: Orchestrator, private config: CompanyConfig) {
     this.orchestrator = orchestrator;
@@ -252,10 +254,9 @@ export class Dashboard {
       }
     });
 
-    this.orchestrator.on('tick', () => {
-      this.animFrame++;
-      this.render();
-    });
+    // Note: We do NOT render on every orchestrator tick.
+    // The dashboard has its own 500ms render interval which is sufficient.
+    // Double-rendering caused terminal freezing.
   }
 
   private async onGoalSubmit(goal: string): Promise<void> {
@@ -282,11 +283,23 @@ export class Dashboard {
   }
 
   private render(): void {
-    this.renderOffice();
-    this.renderAgentPanel();
-    this.renderTaskBoard();
-    this.renderMetricsBar();
-    this.screen.render();
+    // Prevent re-entrant renders and throttle to max ~2fps
+    const now = Date.now();
+    if (this.rendering || now - this.lastRenderTime < 400) return;
+    this.rendering = true;
+    this.lastRenderTime = now;
+
+    try {
+      this.renderOffice();
+      this.renderAgentPanel();
+      this.renderTaskBoard();
+      this.renderMetricsBar();
+      this.screen.render();
+    } catch (err) {
+      // Swallow render errors to prevent crash
+    } finally {
+      this.rendering = false;
+    }
   }
 
   private renderOffice(): void {
@@ -296,23 +309,28 @@ export class Dashboard {
     const agents = this.orchestrator.getAgentList();
     const grid: string[][] = lines.map((line) => [...line]);
 
+    // Build agent position lookup for O(1) access instead of O(n) find per cell
+    const agentPositions = new Map<string, typeof agents[0]>();
+    for (const agent of agents) {
+      const key = `${agent.state.position.x},${agent.state.position.y}`;
+      agentPositions.set(key, agent);
+    }
+
     // Overlay agents on the office map
-    let content = '';
+    const contentParts: string[] = [];
     for (let y = 0; y < grid.length; y++) {
-      let line = '';
+      const lineParts: string[] = [];
       for (let x = 0; x < grid[y].length; x++) {
-        const agentHere = agents.find(
-          (a) => a.state.position.x === x && a.state.position.y === y
-        );
+        const agentHere = agentPositions.get(`${x},${y}`);
 
         if (agentHere) {
           const color = agentHere.state.persona.color;
           const isSelected = this.selectedAgent === agentHere.id;
           const char = agentHere.emoji;
           if (isSelected) {
-            line += `{inverse}{${color}-fg}${char}{/${color}-fg}{/inverse}`;
+            lineParts.push(`{inverse}{${color}-fg}${char}{/${color}-fg}{/inverse}`);
           } else {
-            line += `{${color}-fg}${char}{/${color}-fg}`;
+            lineParts.push(`{${color}-fg}${char}{/${color}-fg}`);
           }
           // Skip next char since emoji takes 2 columns
           x++;
@@ -320,23 +338,23 @@ export class Dashboard {
         } else {
           const ch = grid[y][x];
           if (ch === '▓') {
-            line += `{gray-fg}▓{/gray-fg}`;
+            lineParts.push(`{gray-fg}▓{/gray-fg}`);
           } else if (ch === '░') {
-            line += `{blue-fg}░{/blue-fg}`;
+            lineParts.push(`{blue-fg}░{/blue-fg}`);
           } else if ('═║╔╗╚╝┌┐└┘│─'.includes(ch)) {
-            line += `{cyan-fg}${ch}{/cyan-fg}`;
+            lineParts.push(`{cyan-fg}${ch}{/cyan-fg}`);
           } else if (ch === '·') {
-            line += `{#444444-fg}·{/#444444-fg}`;
+            lineParts.push(`{#444444-fg}·{/#444444-fg}`);
           } else {
-            line += ch;
+            lineParts.push(ch);
           }
         }
       }
-      content += line + '\n';
+      contentParts.push(lineParts.join(''));
     }
 
     // Add animation indicators below map
-    content += '\n';
+    contentParts.push('');
     const activeAgents = agents.filter((a) => a.status !== 'idle' && a.status !== 'break');
     if (activeAgents.length > 0) {
       const indicators = activeAgents.map((a) => {
@@ -344,10 +362,10 @@ export class Dashboard {
         const frame = anim[this.animFrame % anim.length];
         return `{${a.state.persona.color}-fg}${a.emoji}${frame}{/${a.state.persona.color}-fg}`;
       });
-      content += ' ' + indicators.join(' ');
+      contentParts.push(' ' + indicators.join(' '));
     }
 
-    this.officeBox.setContent(content);
+    this.officeBox.setContent(contentParts.join('\n'));
   }
 
   private renderAgentPanel(): void {

@@ -161,6 +161,15 @@ export class Agent extends EventEmitter {
       duration: execution.completedAt - execution.startedAt,
     });
 
+    // Prune completed/failed skills to prevent memory leak (keep last 20)
+    const finished = this.state.activeSkills.filter((s) => s.status !== 'running');
+    if (finished.length > 20) {
+      this.state.activeSkills = [
+        ...this.state.activeSkills.filter((s) => s.status === 'running'),
+        ...finished.slice(-20),
+      ];
+    }
+
     // Return to previous status if no more running skills
     const stillRunning = this.state.activeSkills.filter((s) => s.status === 'running');
     if (stillRunning.length === 0) {
@@ -254,6 +263,10 @@ export class Agent extends EventEmitter {
       channel,
     };
     this.state.messages.push(msg);
+    // Bound messages to prevent memory growth
+    if (this.state.messages.length > 200) {
+      this.state.messages = this.state.messages.slice(-150);
+    }
     this.emit('message', msg);
     return msg;
   }

@@ -20,7 +20,8 @@ export function initCommand(): Command {
     .action(async (options) => {
       const sageDir = '.sage-team';
 
-      if (fs.existsSync(sageDir)) {
+      const configPath = path.join(sageDir, 'config.json');
+      if (fs.existsSync(configPath)) {
         console.log('Sage Team already initialized in this directory.');
         return;
       }

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sage Team — Virtual Office</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <div class="logo">
+        <span class="logo-icon">&#9670;</span>
+        <span class="logo-text">SAGE TEAM</span>
+        <span class="logo-sub">Virtual Office</span>
+      </div>
+      <div class="header-stats">
+        <div class="stat"><span class="stat-label">Agents</span><span class="stat-value" id="stat-agents">11</span></div>
+        <div class="stat"><span class="stat-label">Active</span><span class="stat-value" id="stat-active">0</span></div>
+        <div class="stat"><span class="stat-label">Tasks</span><span class="stat-value" id="stat-tasks">0</span></div>
+        <div class="stat"><span class="stat-label">Sprint</span><span class="stat-value" id="stat-sprint">--</span></div>
+      </div>
+    </header>
+
+    <div id="main">
+      <div id="office-container">
+        <div id="agent-badges"></div>
+        <canvas id="office-canvas"></canvas>
+      </div>
+
+      <div id="sidebar">
+        <div id="team-panel">
+          <h3>Team Status</h3>
+          <div id="agent-list"></div>
+        </div>
+        <div id="chat-panel">
+          <h3>Team Chat</h3>
+          <div id="chat-log"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="office-renderer.js"></script>
+  <script src="agents-data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+/**
+ * Agent definitions and simulation data for the web dashboard.
+ * Mirrors src/agents/personas.ts
+ */
+
+const AGENTS = [
+  {
+    id: 'sage',
+    name: 'Sage',
+    role: 'CEO',
+    color: '#f0883e',
+    desk: { col: 4, row: 1 },
+    skills: ['Strategy', 'Leadership', 'Delegation'],
+  },
+  {
+    id: 'nova',
+    name: 'Nova',
+    role: 'CTO',
+    color: '#bc8cff',
+    desk: { col: 6, row: 1 },
+    skills: ['Architecture', 'Code Review', 'Security'],
+  },
+  {
+    id: 'aria',
+    name: 'Aria',
+    role: 'Architect',
+    color: '#79c0ff',
+    desk: { col: 2, row: 1 },
+    skills: ['System Design', 'Microservices', 'DDD'],
+  },
+  {
+    id: 'atlas',
+    name: 'Atlas',
+    role: 'Data Eng.',
+    color: '#56d364',
+    desk: { col: 8, row: 1 },
+    skills: ['SQL', 'Pipelines', 'AI/ML'],
+  },
+  {
+    id: 'dex',
+    name: 'Dex',
+    role: 'Sr. Dev',
+    color: '#3fb950',
+    desk: { col: 2, row: 3 },
+    skills: ['TypeScript', 'TDD', 'Clean Code'],
+  },
+  {
+    id: 'quinn',
+    name: 'Quinn',
+    role: 'QA Lead',
+    color: '#f0883e',
+    desk: { col: 7, row: 3 },
+    skills: ['Testing', 'Playwright', 'A11y'],
+  },
+  {
+    id: 'flux',
+    name: 'Flux',
+    role: 'Fullstack',
+    color: '#58a6ff',
+    desk: { col: 2, row: 5 },
+    skills: ['React', 'Next.js', 'APIs'],
+  },
+  {
+    id: 'gage',
+    name: 'Gage',
+    role: 'DevOps',
+    color: '#f85149',
+    desk: { col: 7, row: 5 },
+    skills: ['Docker', 'K8s', 'CI/CD'],
+  },
+  {
+    id: 'morgan',
+    name: 'Morgan',
+    role: 'Product',
+    color: '#d2a8ff',
+    desk: { col: 2, row: 7 },
+    skills: ['PRDs', 'Roadmaps', 'Metrics'],
+  },
+  {
+    id: 'river',
+    name: 'River',
+    role: 'Scrum',
+    color: '#e3b341',
+    desk: { col: 4, row: 7 },
+    skills: ['Agile', 'Sprints', 'Retros'],
+  },
+  {
+    id: 'uma',
+    name: 'Uma',
+    role: 'UX',
+    color: '#ff7b72',
+    desk: { col: 6, row: 7 },
+    skills: ['Design Systems', 'A11y', 'Figma'],
+  },
+];
+
+const STATUSES = [
+  'coding', 'thinking', 'reviewing', 'testing', 'deploying',
+  'meeting', 'idle', 'debugging', 'brainstorming', 'planning',
+  'break', 'pair-programming', 'researching', 'writing-docs',
+];
+
+const STATUS_COLORS = {
+  coding: '#3fb950',
+  thinking: '#58a6ff',
+  reviewing: '#bc8cff',
+  testing: '#f0883e',
+  deploying: '#f85149',
+  meeting: '#d2a8ff',
+  idle: '#484f58',
+  debugging: '#f85149',
+  brainstorming: '#e3b341',
+  planning: '#79c0ff',
+  break: '#6e7681',
+  'pair-programming': '#56d364',
+  researching: '#58a6ff',
+  'writing-docs': '#8b949e',
+  'executing-skill': '#ff7b72',
+  'security-audit': '#f85149',
+  dispatching: '#d2a8ff',
+};
+
+const STATUS_LABELS = {
+  coding: 'Coding',
+  thinking: 'Thinking...',
+  reviewing: 'Code Review',
+  testing: 'Running Tests',
+  deploying: 'Deploying',
+  meeting: 'In Meeting',
+  idle: 'Idle',
+  debugging: 'Debugging',
+  brainstorming: 'Brainstorming',
+  planning: 'Planning',
+  break: 'On Break',
+  'pair-programming': 'Pair Programming',
+  researching: 'Researching',
+  'writing-docs': 'Writing Docs',
+  'executing-skill': 'Executing Skill',
+  'security-audit': 'Security Audit',
+  dispatching: 'Dispatching',
+};
+
+const CHAT_MESSAGES = [
+  { from: 'sage', text: 'Good morning team! Let\'s review today\'s sprint goals.' },
+  { from: 'nova', text: 'I\'ve pushed the new auth middleware. Ready for review.' },
+  { from: 'dex', text: 'On it. Running tests first.' },
+  { from: 'quinn', text: 'E2E suite passed. 47/47 green.' },
+  { from: 'flux', text: 'Dashboard component refactored. PR #42 is up.' },
+  { from: 'aria', text: 'New microservice diagram ready for review.' },
+  { from: 'gage', text: 'CI pipeline optimized — builds 40% faster now.' },
+  { from: 'morgan', text: 'Updated the roadmap. Q2 priorities locked in.' },
+  { from: 'river', text: 'Stand-up in 5 minutes, everyone!' },
+  { from: 'uma', text: 'Design system v2 tokens exported to Figma.' },
+  { from: 'atlas', text: 'Data pipeline migration is 80% complete.' },
+  { from: 'dex', text: 'Found a race condition in the event handler. Fixing now.' },
+  { from: 'nova', text: 'Security audit: no critical issues found.' },
+  { from: 'sage', text: 'Great progress! Let\'s keep the momentum going.' },
+];

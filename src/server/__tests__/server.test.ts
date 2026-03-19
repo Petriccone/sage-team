@@ -82,7 +82,7 @@ describe('Server', () => {
 
   it('should respond to GET /api/health', async () => {
     const res = await fetch(`${getAddress()}/api/health`);
-    const data = await res.json();
+    const data: any = await res.json();
     expect(data.status).toBe('ok');
     expect(data.sessionId).toBeTruthy();
   });

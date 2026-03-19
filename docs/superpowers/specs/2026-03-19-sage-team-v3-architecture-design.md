@@ -197,6 +197,17 @@ CREATE INDEX idx_events_session_ts ON events(session_id, timestamp);
 CREATE INDEX idx_agents_session ON agents(session_id);
 CREATE INDEX idx_tasks_status ON tasks(status, session_id);
 CREATE INDEX idx_prs_status ON pull_requests(status, session_id);
+
+-- Performance & concurrency pragmas (set on connection open)
+-- PRAGMA journal_mode=WAL;       -- Write-Ahead Logging for concurrent reads/writes
+-- PRAGMA busy_timeout=5000;      -- Wait up to 5s on lock contention
+-- PRAGMA synchronous=NORMAL;     -- Balance durability vs performance
+-- PRAGMA cache_size=-64000;      -- 64MB cache
+
+-- Event cleanup: keep max 10,000 events per session
+-- DELETE FROM events WHERE session_id = ? AND id NOT IN (
+--   SELECT id FROM events WHERE session_id = ? ORDER BY timestamp DESC LIMIT 10000
+-- );
 ```
 
 ---
@@ -299,15 +310,54 @@ IDLE → ASSIGNED → WORKING → REVIEW → DONE
 
 ### 5.2 Claude Code Subprocess
 
-Each execution agent is a Claude Code process:
+Each execution agent is a Claude Code process spawned via `child_process.spawn`:
 
 ```bash
-claude \
+# Non-interactive mode with --print, stream-json for structured output
+cd /path/to/worktree && claude \
+  --print \
+  --output-format stream-json \
   --system-prompt "$(cat agent-prompt.md)" \
-  --prompt "Execute this task: ..." \
-  --allowedTools "Read,Write,Edit,Bash,Glob,Grep" \
-  --cwd "/path/to/worktree"
+  --permission-mode bypassPermissions \
+  --max-turns 50 \
+  "Execute this task: {task.description}"
 ```
+
+**Key flags:**
+- `--print` — Non-interactive mode (required for subprocess usage)
+- `--output-format stream-json` — Structured JSON event stream on stdout
+- `--permission-mode bypassPermissions` — No interactive approval prompts
+- `--max-turns 50` — Prevent runaway agents (configurable per task complexity)
+- Working directory set via subprocess `cwd` option (not a CLI flag)
+- Prompt is a positional argument (not `--prompt`)
+
+### 5.2.1 Subprocess Output Parsing
+
+Claude Code with `--output-format stream-json` emits one JSON object per line:
+
+```jsonl
+{"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}}
+{"type":"tool_use","tool":"Edit","input":{...}}
+{"type":"tool_result","output":"..."}
+{"type":"result","cost_usd":0.042,"duration_ms":12000,"turns":5}
+```
+
+The dispatcher parses this stream to:
+- Detect `tool_use` events → update agent status in SQLite ("coding", "testing", etc.)
+- Detect `tool_result` events → log file changes, command outputs
+- Detect `result` event → task completed, record cost
+- Detect errors/timeouts → mark task as failed, re-queue if retries remain
+
+### 5.2.2 Error Recovery
+
+| Failure | Response |
+|---------|----------|
+| Subprocess crash | Re-queue task with error context. Max 2 retries. |
+| API rate limit (429) | Exponential backoff: 30s, 60s, 120s. Reduce concurrent agents. |
+| Token budget exceeded | Pause task, notify user via WebSocket. |
+| Subprocess timeout | Kill process, re-queue with simplified prompt. |
+| Agent goes off-task | Detected via output parsing — kill and re-queue with stricter prompt. |
+| Partial work (crash mid-commit) | Worktree preserves state. Resume from worktree on retry. |
 
 ### 5.3 System Prompt Injection
 
@@ -320,6 +370,7 @@ You are {agent.name}, {agent.role} at {company.name}.
 
 # Active Skills
 The following skill protocols are ACTIVE for this task. Follow them exactly.
+Only task-relevant skills are injected (max 3 per task to stay within token budget).
 
 ## {skill.name} (from {skill.source})
 {skill.full_protocol_content}
@@ -339,8 +390,13 @@ Dependencies completed: {resolved_dependencies_summary}
 - Commit with message: [sage:{agent.id}] {semantic description}
 - Do NOT push — CEO handles all push operations
 - Run tests before marking complete
-- If blocked, report via stdout JSON: {"type":"blocked","reason":"..."}
 ```
+
+**System prompt token budget:** Max 30,000 tokens per agent prompt. The prompt builder:
+1. Always includes: Identity + Task + Rules (~2,000 tokens)
+2. Injects task-required skills first (highest priority)
+3. Fills remaining budget with agent's general skills by relevance
+4. If a single skill exceeds 10,000 tokens, inject a condensed version (protocol steps only, no examples)
 
 ### 5.4 Skill Protocol Injection
 
@@ -399,6 +455,48 @@ User rejects → PR status → user_rejected
   - Task re-queued with feedback context
   - Original agent receives rework assignment
 ```
+
+**CEO Merge Mechanism:** The CEO "merge + push" is executed by the **PR Manager** (TypeScript code in the orchestrator), not by a Claude Code subprocess. The PR Manager runs git commands directly:
+1. `git merge --squash sage/{agent}/{task-slug}`
+2. `git commit -m "[sage:ceo] {semantic message based on task title}"`
+3. `git push origin {branch}`
+4. Cleanup: `git worktree remove` + `git branch -d`
+
+The CEO persona provides the semantic context (commit message, merge strategy) via a quick Claude API call, but the actual git operations are deterministic code — no LLM in the loop for destructive operations.
+
+### 5.6 Worktree Lifecycle
+
+```
+Task assigned to agent (sandbox mode)
+       ↓
+Create worktree:
+  git worktree add .sage-team/worktrees/{agent-id}-{task-id} -b sage/{agent-id}/{task-slug}
+  Base: current HEAD of main branch
+       ↓
+Agent works in worktree (Claude Code subprocess cwd = worktree path)
+       ↓
+On task complete: agent commits in worktree branch
+       ↓
+On PR merge: orchestrator squash-merges branch into main
+       ↓
+Cleanup: git worktree remove + git branch -d
+       ↓
+On session resume with stale worktrees:
+  - Check for uncommitted changes → preserve, notify user
+  - Check for committed but unmerged → restore as pending PR
+  - Check for orphaned worktrees → clean up
+```
+
+**Limits:** Max 5 concurrent worktrees (git recommendation). Dispatcher respects this limit in sandbox mode.
+
+### 5.7 Auto-Review Dispatch
+
+When a PR is created, reviews are dispatched as lightweight tasks:
+- Quinn (QA) review: spawns Claude Code subprocess in the worktree (read-only — only runs tests, no edits)
+- Nova (CTO) review: spawns Claude Code subprocess (read-only — reviews code, writes review notes)
+- Reviews do NOT consume a regular concurrency slot — they use a separate review queue (max 2 concurrent reviews)
+- Reviews are non-blocking: if Quinn/Nova are busy with their own tasks, reviews queue until a slot opens
+- Review output is a structured JSON verdict written to SQLite (approve/request-changes + notes)
 
 ---
 
@@ -674,7 +772,35 @@ Spritesheet per agent:
 - `data-engineering-data-pipeline` (Antigravity) — ETL/ELT, streaming
 - `ai-ml` (Antigravity) — RAG, embeddings, model integration
 
-### 7.3 Skill Injection Mechanism
+### 7.3 Canonical Skill IDs and File Mapping
+
+All skill IDs use a prefix convention: `sp-` for Superpowers, `ag-` for Antigravity.
+
+**Superpowers skill ID → file path:**
+
+| Skill ID | File path (relative to superpowers/skills/) |
+|----------|---------------------------------------------|
+| `sp-brainstorming` | `brainstorming/brainstorming.md` |
+| `sp-tdd-cycle` | `test-driven-development/test-driven-development.md` |
+| `sp-tdd-red` | `test-driven-development/tdd-workflows/tdd-red.md` |
+| `sp-tdd-green` | `test-driven-development/tdd-workflows/tdd-green.md` |
+| `sp-tdd-refactor` | `test-driven-development/tdd-workflows/tdd-refactor.md` |
+| `sp-systematic-debugging` | `systematic-debugging/systematic-debugging.md` |
+| `sp-writing-plans` | `writing-plans/writing-plans.md` |
+| `sp-dispatching-parallel` | `dispatching-parallel-agents/dispatching-parallel-agents.md` |
+| `sp-verification` | `verification-before-completion/verification-before-completion.md` |
+| `sp-requesting-review` | `requesting-code-review/requesting-code-review.md` |
+| `sp-receiving-review` | `receiving-code-review/receiving-code-review.md` |
+| `sp-finishing-branch` | `finishing-a-development-branch/finishing-a-development-branch.md` |
+| `sp-subagent-dev` | `subagent-driven-development/subagent-driven-development.md` |
+| `sp-git-worktrees` | `using-git-worktrees/using-git-worktrees.md` |
+| `sp-writing-skills` | `writing-skills/writing-skills.md` |
+
+**Antigravity skill ID → file path:** Resolved by convention: `ag-{name}` → `skills/{name}/{name}.md` or `skills/{name}.md`.
+
+The `skill-loader.ts` maintains this map and resolves IDs to absolute file paths at runtime based on detected installation directories.
+
+### 7.4 Skill Injection Mechanism
 
 Skills are NOT labels or summaries. The **full protocol text** from the skill file is injected into the Claude Code system prompt.
 

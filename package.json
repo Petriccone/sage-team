@@ -22,36 +22,26 @@
     "claude",
     "autonomous",
     "multi-agent",
-    "visualization",
-    "terminal-ui",
-    "company-simulation"
+    "software-company",
+    "pixijs",
+    "isometric",
+    "claude-code"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "@playwright/mcp": "^0.0.68",
     "better-sqlite3": "^12.8.0",
-    "blessed": "^0.1.81",
-    "blessed-contrib": "^4.11.0",
-    "boxen": "^5.1.2",
-    "chalk": "^4.1.2",
     "commander": "^12.1.0",
-    "conf": "^10.2.0",
     "eventemitter3": "^5.0.1",
     "express": "^5.2.1",
-    "figlet": "^1.8.0",
     "nanoid": "^3.3.7",
     "open": "^11.0.0",
-    "ora": "^5.4.1",
-    "playwright-core": "^1.59.0-alpha-1771104257000",
     "ws": "^8.19.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
-    "@types/blessed": "^0.1.25",
     "@types/express": "^5.0.6",
-    "@types/figlet": "^1.7.0",
     "@types/node": "^22.10.0",
     "@types/ws": "^8.18.1",
     "ts-node": "^10.9.2",
@@ -63,6 +53,7 @@
   },
   "files": [
     "dist",
+    "src/web/dist",
     "README.md",
     "LICENSE"
   ]

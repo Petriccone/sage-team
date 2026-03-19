@@ -53,7 +53,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 3,
       requiresApprovalFor: ['budget-decisions', 'hiring', 'public-announcements'],
     },
-    desk: { x: 25, y: 3 },
+    desk: { x: 24, y: 5 },
     color: 'yellow',
   },
   {
@@ -105,7 +105,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 4,
       requiresApprovalFor: ['infrastructure-changes'],
     },
-    desk: { x: 25, y: 7 },
+    desk: { x: 38, y: 5 },
     color: 'cyan',
   },
   {
@@ -164,7 +164,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 3,
       requiresApprovalFor: [],
     },
-    desk: { x: 5, y: 5 },
+    desk: { x: 8, y: 11 },
     color: 'green',
   },
   {
@@ -222,7 +222,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 3,
       requiresApprovalFor: [],
     },
-    desk: { x: 5, y: 9 },
+    desk: { x: 8, y: 17 },
     color: 'blue',
   },
   {
@@ -286,7 +286,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 3,
       requiresApprovalFor: [],
     },
-    desk: { x: 45, y: 5 },
+    desk: { x: 46, y: 11 },
     color: 'red',
   },
   {
@@ -350,7 +350,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 4,
       requiresApprovalFor: ['production-deploy'],
     },
-    desk: { x: 45, y: 9 },
+    desk: { x: 44, y: 17 },
     color: 'magenta',
   },
   {
@@ -409,7 +409,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 2,
       requiresApprovalFor: ['roadmap-changes'],
     },
-    desk: { x: 15, y: 13 },
+    desk: { x: 8, y: 23 },
     color: 'white',
   },
   {
@@ -475,7 +475,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 2,
       requiresApprovalFor: [],
     },
-    desk: { x: 35, y: 13 },
+    desk: { x: 39, y: 23 },
     color: 'yellow',
   },
   {
@@ -542,7 +542,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 3,
       requiresApprovalFor: [],
     },
-    desk: { x: 15, y: 3 },
+    desk: { x: 9, y: 5 },
     color: 'cyan',
   },
   {
@@ -608,7 +608,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 2,
       requiresApprovalFor: [],
     },
-    desk: { x: 25, y: 13 },
+    desk: { x: 24, y: 23 },
     color: 'green',
   },
   {
@@ -675,7 +675,7 @@ export const AGENT_PERSONAS: AgentPersona[] = [
       maxConcurrentSkills: 3,
       requiresApprovalFor: ['production-data-changes'],
     },
-    desk: { x: 35, y: 3 },
+    desk: { x: 51, y: 5 },
     color: 'blue',
   },
 ];

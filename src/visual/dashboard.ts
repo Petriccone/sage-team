@@ -3,6 +3,7 @@ import contrib from 'blessed-contrib';
 import { Orchestrator } from '../engine/orchestrator';
 import { Agent } from '../agents/agent';
 import { getOfficeLines, STATUS_ANIMATIONS, OFFICE_WIDTH, OFFICE_HEIGHT } from './office-map';
+import { getSpriteForStatus, renderSprite } from './character-sprites';
 import { CompanyConfig, AgentStatus, Task } from '../types';
 import { getSkillById } from '../skills/registry';
 
@@ -74,7 +75,7 @@ export class Dashboard {
       top: 3,
       left: '60%',
       width: '40%',
-      height: 12,
+      height: 16,
       label: ' 👥 Team Status ',
       border: { type: 'line' },
       tags: true,
@@ -89,10 +90,10 @@ export class Dashboard {
     // Metrics Dashboard
     this.taskBoard = blessed.box({
       parent: this.screen,
-      top: 15,
+      top: 19,
       left: '60%',
       width: '40%',
-      height: 9,
+      height: 12,
       label: ' 📊 Sprint Board ',
       border: { type: 'line' },
       tags: true,
@@ -294,45 +295,91 @@ export class Dashboard {
 
     const lines = getOfficeLines();
     const agents = this.orchestrator.getAgentList();
-    const grid: string[][] = lines.map((line) => [...line]);
 
-    // Overlay agents on the office map
-    let content = '';
-    for (let y = 0; y < grid.length; y++) {
-      let line = '';
-      for (let x = 0; x < grid[y].length; x++) {
-        const agentHere = agents.find(
-          (a) => a.state.position.x === x && a.state.position.y === y
-        );
+    // Build a grid of tagged strings for each cell
+    // We need a 2D array to overlay multi-line sprites
+    const gridRows = lines.length;
+    const gridCols = lines.reduce((max, l) => Math.max(max, l.length), 0);
 
-        if (agentHere) {
-          const color = agentHere.state.persona.color;
-          const isSelected = this.selectedAgent === agentHere.id;
-          const char = agentHere.emoji;
-          if (isSelected) {
-            line += `{inverse}{${color}-fg}${char}{/${color}-fg}{/inverse}`;
-          } else {
-            line += `{${color}-fg}${char}{/${color}-fg}`;
-          }
-          // Skip next char since emoji takes 2 columns
-          x++;
-          if (x < grid[y].length) continue;
+    // Create base grid with colored map characters
+    const taggedGrid: string[][] = [];
+    for (let y = 0; y < gridRows; y++) {
+      taggedGrid[y] = [];
+      for (let x = 0; x < gridCols; x++) {
+        const ch = lines[y]?.[x] || ' ';
+        if (ch === '▓') {
+          taggedGrid[y][x] = `{#555555-fg}▓{/#555555-fg}`;
+        } else if (ch === '░') {
+          taggedGrid[y][x] = `{#224466-fg}░{/#224466-fg}`;
+        } else if ('═║╔╗╚╝┌┐└┘│─'.includes(ch)) {
+          taggedGrid[y][x] = `{cyan-fg}${ch}{/cyan-fg}`;
+        } else if (ch === '·') {
+          taggedGrid[y][x] = `{#333333-fg}·{/#333333-fg}`;
         } else {
-          const ch = grid[y][x];
-          if (ch === '▓') {
-            line += `{gray-fg}▓{/gray-fg}`;
-          } else if (ch === '░') {
-            line += `{blue-fg}░{/blue-fg}`;
-          } else if ('═║╔╗╚╝┌┐└┘│─'.includes(ch)) {
-            line += `{cyan-fg}${ch}{/cyan-fg}`;
-          } else if (ch === '·') {
-            line += `{#444444-fg}·{/#444444-fg}`;
+          taggedGrid[y][x] = ch;
+        }
+      }
+    }
+
+    // Overlay multi-line character sprites on the grid
+    for (const agent of agents) {
+      const pos = agent.state.position;
+      const sprite = getSpriteForStatus(agent.status);
+      const isSelected = this.selectedAgent === agent.id;
+      const color = agent.state.persona.color;
+
+      // Render sprite rows as tagged strings
+      const spriteRows = renderSprite(sprite, color, isSelected);
+
+      // Place sprite centered on agent position
+      // Sprite anchor is at bottom-center, so the character "stands" at the position
+      const startY = pos.y - sprite.height + 1;
+      const startX = pos.x - Math.floor(sprite.width / 2);
+
+      for (let sy = 0; sy < sprite.rows.length; sy++) {
+        const gy = startY + sy;
+        if (gy < 0 || gy >= gridRows) continue;
+
+        // Place each pixel of the sprite
+        for (let sx = 0; sx < sprite.rows[sy].length; sx++) {
+          const gx = startX + sx;
+          if (gx < 0 || gx >= gridCols) continue;
+
+          const pixel = sprite.rows[sy][sx];
+          if (pixel.type === 'empty') continue; // transparent
+
+          const pixelColor = pixel.type === 'head' ? '#dddddd' :
+            pixel.type === 'body' ? color :
+            pixel.type === 'legs' ? '#555555' :
+            pixel.type === 'desk' ? '#666666' :
+            pixel.type === 'accessory' ? '#888888' : color;
+
+          if (isSelected) {
+            taggedGrid[gy][gx] = `{inverse}{${pixelColor}-fg}${pixel.char}{/${pixelColor}-fg}{/inverse}`;
           } else {
-            line += ch;
+            taggedGrid[gy][gx] = `{${pixelColor}-fg}${pixel.char}{/${pixelColor}-fg}`;
           }
         }
       }
-      content += line + '\n';
+
+      // Draw agent name label above the sprite
+      const nameTag = agent.name;
+      const labelY = startY - 1;
+      const labelX = pos.x - Math.floor(nameTag.length / 2);
+      if (labelY >= 0 && labelY < gridRows) {
+        for (let i = 0; i < nameTag.length; i++) {
+          const lx = labelX + i;
+          if (lx >= 0 && lx < gridCols) {
+            taggedGrid[labelY][lx] = `{${color}-fg}{bold}${nameTag[i]}{/bold}{/${color}-fg}`;
+          }
+        }
+      }
+    }
+
+    // Build final content from tagged grid
+    let content = '';
+    for (let y = 0; y < gridRows; y++) {
+      content += taggedGrid[y].join('') + '\n';
     }
 
     // Add animation indicators below map

@@ -1,5 +1,6 @@
 node_modules/
 dist/
+src/web/dist/
 *.js.map
 *.d.ts
 !src/**/*.d.ts
@@ -8,3 +9,5 @@ dist/
 *.log
 .DS_Store
 .sage-team/
+.claude/
+.superpowers/

@@ -1,17 +1,27 @@
-# 🏢 Sage Team
+# Sage Team
 
-> AI-Powered Autonomous Software Company — 11 agents, 27+ world-class skills, full autonomy, visual tracking.
+```
+  ____                    _____
+ / ___|  __ _  __ _  ___|_   _|__  __ _ _ __ ___
+ \___ \ / _` |/ _` |/ _ \ | |/ _ \/ _` | '_ ` _ \
+  ___) | (_| | (_| |  __/ | |  __/ (_| | | | | | |
+ |____/ \__,_|\__, |\___| |_|\___|\__,_|_| |_| |_|
+              |___/
+  AI-Powered Autonomous Software Company
+```
+
+> 11 agents, 27+ world-class skills, full autonomy, visual 2D office.
 
 Sage Team is a CLI tool that runs a complete AI software company with **11 fully autonomous agents**, each powered by **Claude** (Anthropic). Features a **real-time 2D terminal dashboard**, **27+ skill protocols** from [Superpowers](https://github.com/obra/superpowers) and [Antigravity Awesome Skills](https://github.com/Petriccone/antigravity-awesome-skills), **MCP Playwright** integration for visual tracking, and autonomous decision-making.
 
 ## What Makes This Different
 
-- **Full Agent Autonomy** — Agents self-assign tasks, delegate, dispatch parallel work, and make decisions with confidence scoring
-- **27+ World-Class Skills** — TDD, Clean Code, Security Audit, Microservices, and more from the best open-source skill libraries
-- **2D Visual Office** — Real-time ASCII office with agents moving, working, and interacting
+- **Full Agent Autonomy** — Agents self-assign, delegate, dispatch parallel work, and decide with confidence scoring
+- **27+ World-Class Skills** — TDD, Clean Code, Security Audit, Microservices, and more
+- **2D Visual Office** — Real-time ASCII office with stick-figure agents moving and interacting
 - **MCP Playwright** — Screenshot tracking, browser automation, visual progress reports
-- **Skill-Aware AI** — Each agent has role-specific skill protocols injected into Claude's system prompt
-- **Sprint Board** — Agile workflow with intelligent task-to-agent matching based on skill scores
+- **Skill-Aware AI** — Role-specific skill protocols injected into Claude's system prompt
+- **Sprint Board** — Agile workflow with intelligent task-to-agent matching
 
 ## Quick Start
 
@@ -33,19 +43,28 @@ sage-team start --goal "Build a REST API for a todo app with authentication"
 
 ## The Team (11 Autonomous Agents)
 
-| Agent | Role | Skills | Autonomy |
-|-------|------|--------|----------|
-| 👑 **Sage** | CEO | Strategy, delegation, dispatch | FULL — delegates + dispatches parallel |
-| 🔬 **Nova** | CTO | Architecture, security, 12 skill protocols | FULL — reviews + blocks deploys |
-| ⚡ **Dex** | Senior Dev | TypeScript, TDD, Clean Code, 15 protocols | FULL — self-assigns + reviews |
-| 🌊 **Flux** | Full Stack | React, Next.js, APIs, databases, 13 protocols | FULL — ships end-to-end |
-| 🔍 **Quinn** | QA Lead | Testing, E2E, Playwright, accessibility | FULL — quality gate authority |
-| 🚀 **Gage** | DevOps | Docker, K8s, CI/CD, Terraform, 9 protocols | FULL — exclusive deploy rights |
-| 📋 **Morgan** | Product Manager | PRDs, RICE prioritization, roadmaps | FULL — defines what to build |
-| 🎨 **Uma** | UX Designer | Design systems, a11y, Playwright visual | FULL — approves UI |
-| 🏛️ **Aria** | Architect | Microservices, DDD, ADRs, 9 protocols | FULL — dispatches + delegates |
-| 🌀 **River** | Scrum Master | Agile, facilitation, sprint metrics | FULL — removes blockers |
-| 📊 **Atlas** | Data Engineer | SQL, ETL, AI/ML, RAG, 8 protocols | FULL — data quality gate |
+```
+  C-SUITE
+  ├── Sage    CEO           Strategy, delegation, dispatch
+  └── Nova    CTO           Architecture, security, 12 protocols
+
+  ENGINEERING
+  ├── Dex     Senior Dev    TypeScript, TDD, Clean Code, 15 protocols
+  ├── Flux    Full Stack    React, Next.js, APIs, databases, 13 protocols
+  ├── Aria    Architect     Microservices, DDD, ADRs, 9 protocols
+  └── Atlas   Data Eng      SQL, ETL, AI/ML, RAG, 8 protocols
+
+  QUALITY & OPS
+  ├── Quinn   QA Lead       Testing, E2E, Playwright, accessibility
+  └── Gage    DevOps        Docker, K8s, CI/CD, Terraform, 9 protocols
+
+  PRODUCT & DESIGN
+  ├── Morgan  Product Mgr   PRDs, RICE prioritization, roadmaps
+  ├── Uma     UX Designer   Design systems, a11y, Playwright visual
+  └── River   Scrum Master  Agile, facilitation, sprint metrics
+```
+
+All agents operate in **FULL AUTONOMY** — self-assign tasks, delegate, dispatch parallel work, and make decisions with confidence scoring.
 
 ## Skill System
 
@@ -103,30 +122,114 @@ Screenshots are saved to `.sage-team/screenshots/` with timestamps and agent att
 
 ## Visual Dashboard
 
+The 2D office renders in your terminal with real-time agent positions and status indicators.
+
+### Office Floor Plan
+
 ```
-╔══════════════════════════════════════════════════╗
-║  ┌─ARCHITECT─┐  ┌──CEO───┐  ┌───CTO───┐  ┌DATA┐║
-║  │ 🏛️  Aria │  │ 👑Sage │  │ 🔬 Nova │  │📊  │║
-║  └───────────┘  └────────┘  └─────────┘  └Atlas┘║
-║ ·················································║
-║  ┌─SR.DEV──┐  ····HALLWAY····  ┌──QA───┐  ······║
-║  │ ⚡  Dex │  ···············  │ 🔍Quinn│  ······║
-║  └─────────┘  ···············  └────────┘  ······║
-║ ·················································║
-║  ┌─FULLSTK─┐  ░░░░░░░░░░░░░░  ┌─DEVOPS─┐  ·····║
-║  │ 🌊 Flux │  ░ MEETING ROOM░  │ 🚀Gage │  ·····║
-║  └─────────┘  ░░░░░░░░░░░░░░  └────────┘  ·····║
-║ ·················································║
-║  ┌─PRODUCT─┐  ┌──SCRUM──┐  ┌───UX────┐  ········║
-║  │📋Morgan │  │🌀 River │  │ 🎨 Uma  │  ·LOUNGE║
-║  └─────────┘  └─────────┘  └─────────┘  ········║
-╚══════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════╗
+║                                                      ║
+║  ┌─ARCHITECT──┐  ┌───CEO────┐  ┌────CTO────┐  ┌DATA─┐
+║  │ [##] Aria  │  │ [##] Sage│  │ [##] Nova │  │[##] │
+║  │    o       │  │    o     │  │    o      │  │  o  │
+║  │   /|\      │  │   /|\    │  │   /|\     │  │ /|\ │
+║  │   / \      │  │   / \    │  │   / \     │  │ / \ │
+║  └────────────┘  └──────────┘  └───────────┘  └Atlas┘
+║                                                      ║
+║ ·····················HALLWAY··························║
+║                                                      ║
+║  ┌─SR.DEV───┐                    ┌───QA────┐         ║
+║  │ [##] Dex │                    │[##]Quinn│         ║
+║  │    o     │                    │   o     │         ║
+║  │   /|\    │                    │  /|\    │         ║
+║  │   / \    │                    │  / \    │         ║
+║  └──────────┘                    └─────────┘         ║
+║                                                      ║
+║  ┌─FULLSTK──┐  ░░░░░░░░░░░░░░░  ┌──DEVOPS──┐        ║
+║  │ [##] Flux│  ░             ░  │ [##] Gage│        ║
+║  │    o     │  ░ MEETING ROOM░  │    o     │        ║
+║  │   /|\    │  ░             ░  │   /|\    │        ║
+║  │   / \    │  ░░░░░░░░░░░░░░░  │   / \    │        ║
+║  └──────────┘                    └──────────┘        ║
+║                                                      ║
+║  ┌─PRODUCT──┐  ┌──SCRUM───┐  ┌────UX─────┐  ········║
+║  │[##]Morgan│  │[##]River │  │ [##] Uma  │  ·LOUNGE·║
+║  │   o      │  │   o      │  │    o      │  ·  __  ·║
+║  │  /|\     │  │  /|\     │  │   /|\     │  · |__| ·║
+║  │  / \     │  │  / \     │  │   / \     │  ·  ()  ·║
+║  └──────────┘  └──────────┘  └───────────┘  ········║
+║                                                      ║
+╚══════════════════════════════════════════════════════════╝
 ```
 
-**Status Animations:**
-- `[>>_]` coding  `(· )` thinking  `[✓ ✓]` testing  `[▸▸▸▸]` deploying
-- `[💡✨]` brainstorming  `[📐✓]` planning  `[⚡▸]` executing skill
-- `[🛡️🔍]` security audit  `[📡→]` dispatching  `[🐛!]` debugging
+### Meeting Room (Sprint Planning)
+
+When agents join a meeting, they gather in the meeting room:
+
+```
+  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+  ░                  SPRINT PLANNING                   ░
+  ░                                                    ░
+  ░         o         o         o         o            ░
+  ░        /|\       /|\       /|\       /|\           ░
+  ░        / \       / \       / \       / \           ░
+  ░       Sage      Nova      Aria     Morgan          ░
+  ░        CEO       CTO      ARCH      PM             ░
+  ░                                                    ░
+  ░              ┌──────────────────┐                  ░
+  ░              │   ____________   │                  ░
+  ░              │  |  ROADMAP  |   │                  ░
+  ░              │  |  ~~~~~~~~ |   │                  ░
+  ░              │  |  ~~~~~~~~ |   │                  ░
+  ░              │  |___________|   │                  ░
+  ░              └──────────────────┘                  ░
+  ░                                                    ░
+  ░       o         o         o         o         o    ░
+  ░      /|\       /|\       /|\       /|\       /|\   ░
+  ░      / \       / \       / \       / \       / \   ░
+  ░     Dex       Flux      Quinn     Gage       Uma   ░
+  ░     SR.DEV    FULL      QA        OPS        UX    ░
+  ░                                                    ░
+  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+```
+
+### Pair Programming
+
+```
+  ┌─────────────────────────────────┐
+  │  PAIR PROGRAMMING               │
+  │                                 │
+  │      o   o                      │
+  │     /|\ /|\    ┌──────────────┐ │
+  │     / \ / \    │ function()   │ │
+  │    Dex  Flux   │   return x;  │ │
+  │                │ }            │ │
+  │                └──────────────┘ │
+  └─────────────────────────────────┘
+```
+
+### Code Review
+
+```
+  ┌─────────────────────────────────┐
+  │  CODE REVIEW          [APPROVE] │
+  │                                 │
+  │    o          ┌──────────────┐  │
+  │   /|\  Nova   │ diff --git   │  │
+  │   / \  CTO    │ +++ b/src    │  │
+  │               │ - old code   │  │
+  │   [>>_]       │ + new code   │  │
+  │   reviewing   └──────────────┘  │
+  └─────────────────────────────────┘
+```
+
+### Status Animations
+
+```
+  [>>_]  coding         (· )  thinking       [v v]  testing
+  [>>>>] deploying      [**]  brainstorming  [  !]  debugging
+  [# #]  executing      [>>>] dispatching    [ zz]  idle
+```
 
 **Keybindings:** `q` quit | `Tab` input | `1-9` select agent | `g` goal | `s` screenshot
 

@@ -1,0 +1,22 @@
+# Source files (dist/ is published instead)
+src/
+tests/
+docs/
+
+# Config and dev files
+.claude/
+.sage-team/
+.env
+.env.example
+tsconfig.json
+CLAUDE.md
+CONTRIBUTING.md
+
+# Git and CI
+.git/
+.github/
+
+# Dev dependencies artifacts
+node_modules/
+coverage/
+*.tsbuildinfo

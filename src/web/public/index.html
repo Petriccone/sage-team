@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sage Team — AI Office Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg2: #161b22;
+    --bg3: #21262d;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --cyan: #39d4e0;
+    --orange: #d18616;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  #header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    height: 44px;
+  }
+  #header h1 {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--yellow);
+  }
+  #header h1 span { color: var(--text-dim); font-weight: 400; }
+  #metrics {
+    display: flex;
+    gap: 18px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  #metrics .val { color: var(--accent); font-weight: 600; }
+
+  /* Main layout */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Left: Canvas */
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    border-right: 1px solid var(--border);
+    min-width: 0;
+  }
+  #office-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    image-rendering: pixelated;
+  }
+  #tooltip {
+    display: none;
+    position: absolute;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 11px;
+    pointer-events: none;
+    z-index: 10;
+    max-width: 240px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+  #tooltip .name { font-weight: 700; font-size: 13px; }
+  #tooltip .role { color: var(--text-dim); }
+  #tooltip .stat { color: var(--accent); }
+
+  /* Right sidebar */
+  #sidebar {
+    width: 340px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg2);
+    overflow: hidden;
+  }
+
+  /* Agent list */
+  #agent-panel {
+    flex: 1;
+    overflow-y: auto;
+    border-bottom: 1px solid var(--border);
+  }
+  #agent-panel h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    padding: 10px 12px 6px;
+    position: sticky;
+    top: 0;
+    background: var(--bg2);
+    z-index: 2;
+  }
+  .agent-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: background 0.15s;
+  }
+  .agent-row:hover { background: var(--bg3); }
+  .agent-row.selected { background: var(--bg3); border-left-color: var(--accent); }
+  .agent-row .emoji { font-size: 16px; width: 22px; text-align: center; }
+  .agent-row .info { flex: 1; min-width: 0; }
+  .agent-row .aname { font-size: 12px; font-weight: 600; }
+  .agent-row .arole { font-size: 10px; color: var(--text-dim); }
+  .agent-row .astatus {
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--bg);
+    white-space: nowrap;
+  }
+  .status-coding { color: var(--green); }
+  .status-thinking, .status-planning, .status-brainstorming, .status-researching { color: var(--yellow); }
+  .status-deploying, .status-dispatching, .status-executing-skill { color: var(--purple); }
+  .status-reviewing, .status-testing, .status-security-audit { color: var(--cyan); }
+  .status-debugging { color: var(--red); }
+  .status-meeting, .status-pair-programming { color: var(--orange); }
+  .status-idle, .status-break { color: var(--text-dim); }
+
+  /* Task board */
+  #task-panel {
+    height: 160px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    border-bottom: 1px solid var(--border);
+    padding: 0 12px 8px;
+  }
+  #task-panel h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    padding: 10px 0 6px;
+    position: sticky;
+    top: 0;
+    background: var(--bg2);
+    z-index: 2;
+  }
+  .task-item {
+    font-size: 11px;
+    padding: 4px 0;
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+  }
+  .task-item .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .task-item .dot.todo { background: var(--text-dim); }
+  .task-item .dot.in-progress { background: var(--accent); }
+  .task-item .dot.review { background: var(--yellow); }
+  .task-item .dot.done { background: var(--green); }
+  .task-item .ttitle { flex: 1; }
+  .task-item .tassignee { color: var(--text-dim); font-size: 10px; }
+
+  /* Chat log */
+  #chat-panel {
+    flex: 1;
+    min-height: 120px;
+    overflow-y: auto;
+    padding: 0 12px 8px;
+  }
+  #chat-panel h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    padding: 10px 0 6px;
+    position: sticky;
+    top: 0;
+    background: var(--bg2);
+    z-index: 2;
+  }
+  .msg {
+    font-size: 11px;
+    padding: 3px 0;
+    line-height: 1.4;
+  }
+  .msg .mfrom { font-weight: 600; }
+  .msg .mto { color: var(--text-dim); }
+  .msg .mcontent { color: var(--text); }
+
+  /* Goal input */
+  #goal-bar {
+    display: flex;
+    padding: 8px 12px;
+    gap: 8px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #goal-input {
+    flex: 1;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+    padding: 6px 10px;
+    outline: none;
+  }
+  #goal-input:focus { border-color: var(--accent); }
+  #goal-btn {
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #goal-btn:hover { opacity: 0.85; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>SAGE TEAM <span>— AI Office</span></h1>
+  <div id="metrics">
+    <span>Tasks <span class="val" id="m-tasks">0</span></span>
+    <span>LOC <span class="val" id="m-loc">0</span></span>
+    <span>Skills <span class="val" id="m-skills">0</span></span>
+    <span>Decisions <span class="val" id="m-decisions">0</span></span>
+  </div>
+</div>
+
+<div id="main">
+  <div id="canvas-wrap">
+    <canvas id="office-canvas"></canvas>
+    <div id="tooltip"></div>
+  </div>
+  <div id="sidebar">
+    <div id="agent-panel"><h2>Team</h2></div>
+    <div id="task-panel"><h2>Sprint Board</h2></div>
+    <div id="chat-panel"><h2>Activity</h2></div>
+    <div id="goal-bar">
+      <input id="goal-input" placeholder="Submit a goal..." />
+      <button id="goal-btn">GO</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== STATE =====
+let state = { agents: [], tasks: [], messages: [], metrics: {}, sprint: null };
+let selectedAgentId = null;
+let hoveredAgentId = null;
+let animFrame = 0;
+
+// ===== COLOR MAP =====
+const AGENT_COLORS = {
+  yellow: '#d29922',
+  cyan: '#39d4e0',
+  green: '#3fb950',
+  blue: '#58a6ff',
+  red: '#f85149',
+  magenta: '#bc8cff',
+  white: '#c9d1d9',
+};
+const HEAD_COLOR = '#dddddd';
+const LEG_COLOR = '#555555';
+const DESK_COLOR = '#666666';
+
+// ===== OFFICE GEOMETRY =====
+// Isometric tile size
+const TILE_W = 16;
+const TILE_H = 10;
+const OFFICE_COLS = 64;
+const OFFICE_ROWS = 26;
+
+// Room definitions for drawing
+const ROOMS = [
+  { label: 'Architect', x: 2, y: 1, w: 14, h: 5, color: '#1a2332' },
+  { label: 'CEO', x: 18, y: 1, w: 12, h: 5, color: '#2a1f0f' },
+  { label: 'CTO', x: 32, y: 1, w: 12, h: 5, color: '#0f2a2a' },
+  { label: 'Data', x: 46, y: 1, w: 10, h: 5, color: '#141a2e' },
+  { label: 'Sr.Dev', x: 2, y: 7, w: 13, h: 5, color: '#0f2e14' },
+  { label: 'QA', x: 40, y: 7, w: 12, h: 5, color: '#2e0f0f' },
+  { label: 'Full Stack', x: 2, y: 13, w: 13, h: 5, color: '#0f1a2e' },
+  { label: 'Meeting', x: 18, y: 13, w: 18, h: 5, color: '#1e1e1e' },
+  { label: 'DevOps', x: 38, y: 13, w: 12, h: 5, color: '#1e0f2e' },
+  { label: 'Product', x: 2, y: 19, w: 13, h: 5, color: '#1e1e1e' },
+  { label: 'Scrum', x: 18, y: 19, w: 13, h: 5, color: '#0f2e14' },
+  { label: 'UX', x: 33, y: 19, w: 12, h: 5, color: '#2a1f0f' },
+  { label: 'Lounge', x: 48, y: 19, w: 11, h: 5, color: '#1a1a0f' },
+];
+
+// ===== ISOMETRIC HELPERS =====
+function isoX(col, row) { return (col - row) * (TILE_W / 2); }
+function isoY(col, row) { return (col + row) * (TILE_H / 2); }
+
+// ===== CANVAS SETUP =====
+const canvas = document.getElementById('office-canvas');
+const ctx = canvas.getContext('2d');
+let offsetX = 0, offsetY = 0, scale = 1;
+
+function resizeCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  canvas.width = wrap.clientWidth * devicePixelRatio;
+  canvas.height = wrap.clientHeight * devicePixelRatio;
+  canvas.style.width = wrap.clientWidth + 'px';
+  canvas.style.height = wrap.clientHeight + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+  // Center the isometric map
+  const mapW = (OFFICE_COLS + OFFICE_ROWS) * (TILE_W / 2);
+  const mapH = (OFFICE_COLS + OFFICE_ROWS) * (TILE_H / 2);
+  offsetX = (wrap.clientWidth - mapW * scale) / 2 + OFFICE_ROWS * (TILE_W / 2) * scale;
+  offsetY = (wrap.clientHeight - mapH * scale) / 2 + 20;
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ===== DRAWING =====
+function drawFloor() {
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+
+  // Draw base floor tiles
+  for (let r = 0; r < OFFICE_ROWS; r++) {
+    for (let c = 0; c < OFFICE_COLS; c++) {
+      const x = isoX(c, r);
+      const y = isoY(c, r);
+      drawTile(x, y, '#14191f', '#1a2028');
+    }
+  }
+
+  // Draw rooms
+  for (const room of ROOMS) {
+    for (let r = room.y; r < room.y + room.h; r++) {
+      for (let c = room.x; c < room.x + room.w; c++) {
+        const x = isoX(c, r);
+        const y = isoY(c, r);
+        drawTile(x, y, room.color, lighten(room.color, 0.15));
+      }
+    }
+    // Room label
+    const cx = isoX(room.x + room.w / 2, room.y + room.h / 2);
+    const cy = isoY(room.x + room.w / 2, room.y + room.h / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(room.label, cx, cy + 3);
+  }
+
+  // Draw room walls (edges)
+  for (const room of ROOMS) {
+    drawRoomWalls(room);
+  }
+
+  ctx.restore();
+}
+
+function drawTile(x, y, fill, stroke) {
+  const hw = TILE_W / 2;
+  const hh = TILE_H / 2;
+  ctx.beginPath();
+  ctx.moveTo(x, y - hh);
+  ctx.lineTo(x + hw, y);
+  ctx.lineTo(x, y + hh);
+  ctx.lineTo(x - hw, y);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke || 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+}
+
+function drawRoomWalls(room) {
+  const { x: rx, y: ry, w, h } = room;
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1.5;
+
+  // Top edge
+  const tl = { x: isoX(rx, ry), y: isoY(rx, ry) };
+  const tr = { x: isoX(rx + w, ry), y: isoY(rx + w, ry) };
+  const br = { x: isoX(rx + w, ry + h), y: isoY(rx + w, ry + h) };
+  const bl = { x: isoX(rx, ry + h), y: isoY(rx, ry + h) };
+
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y - TILE_H / 2);
+  ctx.lineTo(tr.x, tr.y - TILE_H / 2);
+  ctx.lineTo(br.x, br.y - TILE_H / 2);
+  ctx.lineTo(bl.x, bl.y - TILE_H / 2);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+function drawDesk(col, row) {
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+
+  const x = isoX(col, row);
+  const y = isoY(col, row);
+
+  // Draw a small desk (2 tiles wide)
+  for (let dc = -1; dc <= 0; dc++) {
+    const dx = isoX(col + dc, row);
+    const dy = isoY(col + dc, row);
+    drawTile(dx, dy - 3, '#3a3020', '#504830');
+  }
+
+  // Monitor on desk
+  ctx.fillStyle = '#223344';
+  ctx.fillRect(x - 5, y - 14, 10, 7);
+  ctx.fillStyle = '#44aacc';
+  ctx.fillRect(x - 4, y - 13, 8, 5);
+
+  ctx.restore();
+}
+
+function drawAgent(agent) {
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(scale, scale);
+
+  const col = agent.position?.x ?? agent.desk?.x ?? 0;
+  const row = agent.position?.y ?? agent.desk?.y ?? 0;
+  const x = isoX(col, row);
+  const y = isoY(col, row);
+  const color = AGENT_COLORS[agent.color] || '#888';
+  const isSelected = agent.id === selectedAgentId;
+  const isHovered = agent.id === hoveredAgentId;
+
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, 8, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Pixel-art character (isometric sprite)
+  const spriteW = 3;
+  const spriteH = 4;
+  const px = 3; // pixel size
+
+  // Head
+  ctx.fillStyle = HEAD_COLOR;
+  ctx.fillRect(x - px, y - spriteH * px - 6, px * 2, px);
+  // Hair/top
+  ctx.fillStyle = color;
+  ctx.fillRect(x - px, y - spriteH * px - 9, px * 2, px);
+
+  // Body
+  ctx.fillStyle = color;
+  ctx.fillRect(x - px * 1.5, y - spriteH * px + px - 6, px * 3, px * 1.5);
+
+  // Arms based on status
+  if (agent.status === 'coding' || agent.status === 'debugging' || agent.status === 'writing-docs') {
+    ctx.fillStyle = color;
+    ctx.fillRect(x - px * 2.5, y - spriteH * px + px - 4, px, px);
+    ctx.fillRect(x + px * 1.5, y - spriteH * px + px - 4, px, px);
+  } else if (agent.status === 'thinking' || agent.status === 'planning' || agent.status === 'brainstorming') {
+    // Thought bubble
+    const bobble = Math.sin(animFrame * 0.15 + col) * 2;
+    ctx.fillStyle = 'rgba(255,255,200,0.6)';
+    ctx.beginPath();
+    ctx.arc(x + 8, y - spriteH * px - 12 + bobble, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + 5, y - spriteH * px - 8, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (agent.status === 'deploying' || agent.status === 'dispatching') {
+    // Energy lines
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    const flash = (animFrame % 8) < 4;
+    if (flash) {
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y - 12);
+      ctx.lineTo(x - 6, y - 10);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + 10, y - 12);
+      ctx.lineTo(x + 6, y - 10);
+      ctx.stroke();
+    }
+  }
+
+  // Legs
+  ctx.fillStyle = LEG_COLOR;
+  ctx.fillRect(x - px, y - 6, px * 0.8, px * 1.5);
+  ctx.fillRect(x + px * 0.2, y - 6, px * 0.8, px * 1.5);
+
+  // Selection ring
+  if (isSelected || isHovered) {
+    ctx.strokeStyle = isSelected ? '#58a6ff' : 'rgba(88,166,255,0.4)';
+    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 2, 12, 6, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Name label
+  ctx.font = 'bold 8px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = isSelected ? '#58a6ff' : 'rgba(255,255,255,0.7)';
+  ctx.fillText(agent.emoji + ' ' + agent.name, x, y - spriteH * px - 12);
+
+  // Status badge
+  if (agent.status && agent.status !== 'idle') {
+    const statusText = agent.status.replace(/-/g, ' ');
+    ctx.font = '7px monospace';
+    const tw = ctx.measureText(statusText).width;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(x - tw / 2 - 3, y + 6, tw + 6, 10);
+    ctx.fillStyle = color;
+    ctx.fillText(statusText, x, y + 14);
+  }
+
+  // Active skills indicator
+  if (agent.activeSkills && agent.activeSkills.length > 0) {
+    const sparkle = (animFrame % 12) < 6;
+    if (sparkle) {
+      ctx.fillStyle = 'rgba(255,255,100,0.8)';
+      ctx.font = '7px monospace';
+      ctx.fillText('⚡', x + 10, y - spriteH * px - 4);
+    }
+  }
+
+  ctx.restore();
+}
+
+// ===== MAIN RENDER =====
+function render() {
+  animFrame++;
+  const wrap = document.getElementById('canvas-wrap');
+  ctx.clearRect(0, 0, wrap.clientWidth, wrap.clientHeight);
+
+  drawFloor();
+
+  // Draw desks at agent positions
+  for (const agent of state.agents) {
+    const col = agent.desk?.x ?? agent.position?.x ?? 0;
+    const row = agent.desk?.y ?? agent.position?.y ?? 0;
+    drawDesk(col, row);
+  }
+
+  // Sort agents by row for depth ordering
+  const sorted = [...state.agents].sort((a, b) => {
+    const ay = a.position?.y ?? a.desk?.y ?? 0;
+    const by = b.position?.y ?? b.desk?.y ?? 0;
+    return ay - by;
+  });
+
+  for (const agent of sorted) {
+    drawAgent(agent);
+  }
+
+  // Sprint goal overlay
+  if (state.sprint?.goal) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(8, wrap.clientHeight - 30, wrap.clientWidth - 350, 22);
+    ctx.fillStyle = '#d29922';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('🎯 ' + state.sprint.goal, 14, wrap.clientHeight - 15);
+  }
+
+  requestAnimationFrame(render);
+}
+
+// ===== UI UPDATES =====
+function updateSidebar() {
+  // Agent list
+  const panel = document.getElementById('agent-panel');
+  let html = '<h2>Team</h2>';
+  for (const a of state.agents) {
+    const sel = a.id === selectedAgentId ? ' selected' : '';
+    const statusCls = 'status-' + (a.status || 'idle');
+    html += `<div class="agent-row${sel}" data-id="${a.id}">
+      <span class="emoji">${a.emoji}</span>
+      <div class="info">
+        <div class="aname" style="color:${AGENT_COLORS[a.color] || '#ccc'}">${a.name}</div>
+        <div class="arole">${a.title || a.role}</div>
+      </div>
+      <span class="astatus ${statusCls}">${(a.status || 'idle').replace(/-/g, ' ')}</span>
+    </div>`;
+  }
+  panel.innerHTML = html;
+
+  // Re-attach click handlers
+  panel.querySelectorAll('.agent-row').forEach(row => {
+    row.addEventListener('click', () => {
+      selectedAgentId = selectedAgentId === row.dataset.id ? null : row.dataset.id;
+      updateSidebar();
+    });
+  });
+
+  // Tasks
+  const tpanel = document.getElementById('task-panel');
+  let thtml = '<h2>Sprint Board</h2>';
+  const taskOrder = { 'in-progress': 0, 'review': 1, 'todo': 2, 'backlog': 3, 'done': 4 };
+  const sorted = [...(state.tasks || [])].sort((a, b) => (taskOrder[a.status] ?? 5) - (taskOrder[b.status] ?? 5));
+  for (const t of sorted.slice(0, 20)) {
+    const assignee = t.assignee ? state.agents.find(a => a.id === t.assignee)?.name || '' : '';
+    thtml += `<div class="task-item">
+      <span class="dot ${t.status}"></span>
+      <span class="ttitle">${t.title}</span>
+      <span class="tassignee">${assignee}</span>
+    </div>`;
+  }
+  if (!sorted.length) thtml += '<div style="font-size:11px;color:var(--text-dim);padding:8px 0">No tasks yet — submit a goal</div>';
+  tpanel.innerHTML = thtml;
+
+  // Chat
+  const cpanel = document.getElementById('chat-panel');
+  let chtml = '<h2>Activity</h2>';
+  for (const m of (state.messages || []).slice(-30)) {
+    const fromColor = AGENT_COLORS[m.color] || '#ccc';
+    chtml += `<div class="msg">
+      <span class="mfrom" style="color:${fromColor}">${m.emoji} ${m.from}</span>
+      <span class="mto">→ ${m.to}:</span>
+      <span class="mcontent">${escapeHtml(m.content || '').slice(0, 120)}</span>
+    </div>`;
+  }
+  if (!(state.messages || []).length) chtml += '<div style="font-size:11px;color:var(--text-dim);padding:8px 0">Waiting for activity...</div>';
+  cpanel.innerHTML = chtml;
+  cpanel.scrollTop = cpanel.scrollHeight;
+
+  // Metrics
+  const met = state.metrics || {};
+  document.getElementById('m-tasks').textContent = met.tasksCompleted || 0;
+  document.getElementById('m-loc').textContent = met.linesOfCode || 0;
+  document.getElementById('m-skills').textContent = met.skillsExecuted || 0;
+  document.getElementById('m-decisions').textContent = met.autonomousDecisions || 0;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function lighten(hex, amt) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  let r = (num >> 16) + Math.round(255 * amt);
+  let g = ((num >> 8) & 0xff) + Math.round(255 * amt);
+  let b = (num & 0xff) + Math.round(255 * amt);
+  r = Math.min(255, r); g = Math.min(255, g); b = Math.min(255, b);
+  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+}
+
+// ===== HOVER / TOOLTIP =====
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+
+  // Find hovered agent
+  let found = null;
+  for (const agent of state.agents) {
+    const col = agent.position?.x ?? agent.desk?.x ?? 0;
+    const row = agent.position?.y ?? agent.desk?.y ?? 0;
+    const ax = offsetX + isoX(col, row) * scale;
+    const ay = offsetY + isoY(col, row) * scale;
+    const dist = Math.hypot(mx - ax, my - ay);
+    if (dist < 20 * scale) {
+      found = agent;
+      break;
+    }
+  }
+
+  hoveredAgentId = found?.id || null;
+  const tooltip = document.getElementById('tooltip');
+
+  if (found) {
+    tooltip.style.display = 'block';
+    tooltip.style.left = (mx + 16) + 'px';
+    tooltip.style.top = (my - 10) + 'px';
+    tooltip.innerHTML = `
+      <div class="name" style="color:${AGENT_COLORS[found.color] || '#ccc'}">${found.emoji} ${found.name}</div>
+      <div class="role">${found.title || found.role}</div>
+      <div style="margin-top:4px">Status: <span class="stat">${found.status || 'idle'}</span></div>
+      <div>Mood: ${found.mood || '-'}</div>
+      ${found.activeSkills?.length ? '<div>Skills: <span class="stat">' + found.activeSkills.join(', ') + '</span></div>' : ''}
+      ${found.stats ? '<div style="margin-top:4px;font-size:10px;color:var(--text-dim)">Tasks: ' + (found.stats.tasksCompleted || 0) + ' | Lines: ' + (found.stats.linesWritten || 0) + '</div>' : ''}
+    `;
+  } else {
+    tooltip.style.display = 'none';
+  }
+});
+
+canvas.addEventListener('click', (e) => {
+  if (hoveredAgentId) {
+    selectedAgentId = selectedAgentId === hoveredAgentId ? null : hoveredAgentId;
+    updateSidebar();
+  }
+});
+
+// ===== SSE CONNECTION =====
+function connectSSE() {
+  const evtSource = new EventSource('/api/events');
+
+  evtSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'state' && data.payload) {
+        state = data.payload;
+        updateSidebar();
+      }
+    } catch (e) {
+      // ignore parse errors
+    }
+  };
+
+  evtSource.onerror = () => {
+    evtSource.close();
+    setTimeout(connectSSE, 2000);
+  };
+}
+
+// ===== GOAL SUBMISSION =====
+document.getElementById('goal-btn').addEventListener('click', submitGoal);
+document.getElementById('goal-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitGoal();
+});
+
+async function submitGoal() {
+  const input = document.getElementById('goal-input');
+  const goal = input.value.trim();
+  if (!goal) return;
+  input.value = '';
+
+  try {
+    await fetch('/api/goal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goal }),
+    });
+  } catch (e) {
+    console.error('Failed to submit goal:', e);
+  }
+}
+
+// ===== INIT =====
+resizeCanvas();
+connectSSE();
+render();
+
+// Also fetch initial state directly
+fetch('/api/state')
+  .then(r => r.json())
+  .then(d => { state = d; updateSidebar(); })
+  .catch(() => {});
+</script>
+</body>
+</html>

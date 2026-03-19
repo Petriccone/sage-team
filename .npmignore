@@ -1,0 +1,29 @@
+# Source files (dist/ is published)
+src/
+tests/
+docs/
+skills/
+
+# Config
+tsconfig.json
+.env
+.env.example
+.mcp.json
+.claude/
+
+# Development
+.git/
+.github/
+.gitignore
+.sage-team/
+node_modules/
+
+# Artifacts
+*.png
+*.jpg
+meeting-room-2d.html
+
+# Documentation (README and LICENSE are included)
+CONTRIBUTING.md
+CHANGELOG.md
+CLAUDE.md

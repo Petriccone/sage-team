@@ -12,6 +12,7 @@
     "dev": "ts-node src/cli.ts",
     "start": "node dist/cli.js",
     "postinstall": "npx playwright install chromium || echo '⚠️  Chromium install failed. Run: npx playwright install chromium'",
+    "test": "node --test tests/**/*.test.js",
     "prepublishOnly": "npm run build"
   },
   "keywords": [

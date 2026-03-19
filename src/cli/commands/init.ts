@@ -1,0 +1,67 @@
+import { Command } from 'commander';
+import fs from 'fs';
+import path from 'path';
+
+const DEFAULT_CONFIG = {
+  companyName: 'Sage Team',
+  mission: 'Build amazing software autonomously',
+  model: 'claude-sonnet-4-20250514',
+  maxConcurrentAgents: 3,
+  autonomyMode: 'sandbox',
+  apiKey: '',
+};
+
+export function initCommand(): Command {
+  return new Command('init')
+    .description('Initialize Sage Team in current directory')
+    .option('--api-key <key>', 'Anthropic API key')
+    .option('--company-name <name>', 'Company name')
+    .option('--autonomy <mode>', 'Autonomy mode: sandbox|direct|supervised', 'sandbox')
+    .action(async (options) => {
+      const sageDir = '.sage-team';
+
+      if (fs.existsSync(sageDir)) {
+        console.log('Sage Team already initialized in this directory.');
+        return;
+      }
+
+      // Create directory structure
+      fs.mkdirSync(path.join(sageDir, 'worktrees'), { recursive: true });
+
+      // Build config
+      const config = { ...DEFAULT_CONFIG };
+      if (options.apiKey) config.apiKey = options.apiKey;
+      if (options.companyName) config.companyName = options.companyName;
+      if (options.autonomy) config.autonomyMode = options.autonomy;
+
+      // Check env var
+      if (!config.apiKey && process.env.ANTHROPIC_API_KEY) {
+        config.apiKey = process.env.ANTHROPIC_API_KEY;
+      }
+
+      // Write config
+      fs.writeFileSync(
+        path.join(sageDir, 'config.json'),
+        JSON.stringify(config, null, 2)
+      );
+
+      // Add to .gitignore
+      const gitignorePath = '.gitignore';
+      const gitignoreEntry = '\n# Sage Team\n.sage-team/\n';
+      if (fs.existsSync(gitignorePath)) {
+        const content = fs.readFileSync(gitignorePath, 'utf-8');
+        if (!content.includes('.sage-team')) {
+          fs.appendFileSync(gitignorePath, gitignoreEntry);
+        }
+      } else {
+        fs.writeFileSync(gitignorePath, gitignoreEntry);
+      }
+
+      console.log('Sage Team initialized successfully!');
+      console.log(`  Config: ${sageDir}/config.json`);
+      console.log(`  Mode: ${config.autonomyMode}`);
+      if (!config.apiKey) {
+        console.log('\n  Warning: No API key set. Run: sage-team config --api-key <key>');
+      }
+    });
+}

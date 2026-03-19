@@ -1,705 +1,358 @@
-import { EventEmitter } from 'eventemitter3';
-import { Agent } from '../agents/agent';
-import { AGENT_PERSONAS } from '../agents/personas';
-import { ClaudeClient } from './claude-client';
-import { PlaywrightBridge, ScreenshotResult } from '../browser/playwright-bridge';
-import { getSkillById, getSkillsByTrigger } from '../skills/registry';
-import {
-  AgentPersona,
-  Task,
-  Sprint,
-  CompanyConfig,
-  EngineEvent,
-  CompanyMetrics,
-  AgentStatus,
-  AgentDecision,
-} from '../types';
+import { EventEmitter } from 'events';
+import { Database } from '../state/database';
+import { SessionsRepo } from '../state/repositories/sessions';
+import { AgentsRepo } from '../state/repositories/agents';
+import { TasksRepo } from '../state/repositories/tasks';
+import { SprintsRepo } from '../state/repositories/sprints';
+import { EventsRepo } from '../state/repositories/events';
+import { MessagesRepo } from '../state/repositories/messages';
+import { PullRequestsRepo } from '../state/repositories/pull-requests';
+import { CEOBrain, AgentRoster } from './ceo-brain';
+import { Dispatcher } from './dispatcher';
+import { PRManager } from './pr-manager';
+import { PromptBuilder } from './prompt-builder';
+import { SkillLoader } from '../skills/loader';
+import { PERSONAS } from '../agents/personas';
+import { AGENT_SKILLS } from '../agents/skills-map';
+import type { Session, AutonomyMode } from '../types';
+
+export interface OrchestratorConfig {
+  apiKey: string;
+  model: string;
+  maxConcurrentAgents: number;
+  autonomyMode: AutonomyMode;
+  companyName: string;
+  mission: string;
+}
 
 export class Orchestrator extends EventEmitter {
-  public agents: Map<string, Agent> = new Map();
-  public tasks: Task[] = [];
-  public currentSprint: Sprint | null = null;
-  public events: EngineEvent[] = [];
-  public metrics: CompanyMetrics;
-  public browser: PlaywrightBridge;
-  private claude: ClaudeClient;
-  private config: CompanyConfig;
-  private running: boolean = false;
-  private tickInterval: ReturnType<typeof setInterval> | null = null;
-  private tickCount: number = 0;
+  private db: Database;
+  private config: OrchestratorConfig;
 
-  constructor(config: CompanyConfig) {
+  // Repositories
+  private sessions: SessionsRepo;
+  private agents: AgentsRepo;
+  private tasks: TasksRepo;
+  private sprints: SprintsRepo;
+  private events: EventsRepo;
+  private messages: MessagesRepo;
+  private pullRequests: PullRequestsRepo;
+
+  // Engine components
+  private ceoBrain: CEOBrain;
+  private dispatcher: Dispatcher;
+  private prManager: PRManager;
+  private promptBuilder: PromptBuilder;
+  private skillLoader: SkillLoader;
+
+  // State
+  private _sessionId: string | null = null;
+  private tickTimer: ReturnType<typeof setInterval> | null = null;
+  private running = false;
+
+  get sessionId(): string | null {
+    return this._sessionId;
+  }
+
+  constructor(db: Database, config: OrchestratorConfig) {
     super();
+    this.db = db;
     this.config = config;
-    this.claude = new ClaudeClient(config.apiKey, config.model);
-    this.browser = new PlaywrightBridge(config.projectPath);
-    this.metrics = {
-      totalTasksCompleted: 0,
-      totalLinesOfCode: 0,
-      sprintVelocity: 0,
-      teamMorale: 85,
-      bugsFound: 0,
-      bugsFixed: 0,
-      deployments: 0,
-      uptime: 99.9,
-      skillsExecuted: 0,
-      autonomousDecisions: 0,
-    };
 
-    this.initializeAgents();
-    this.setupBrowserListeners();
+    // Init repos
+    this.sessions = new SessionsRepo(db);
+    this.agents = new AgentsRepo(db);
+    this.tasks = new TasksRepo(db);
+    this.sprints = new SprintsRepo(db);
+    this.events = new EventsRepo(db);
+    this.messages = new MessagesRepo(db);
+    this.pullRequests = new PullRequestsRepo(db);
+
+    // Init engine
+    this.ceoBrain = new CEOBrain({ apiKey: config.apiKey, model: config.model });
+    this.dispatcher = new Dispatcher({ maxConcurrent: config.maxConcurrentAgents });
+    this.prManager = new PRManager();
+    this.promptBuilder = new PromptBuilder();
+    this.skillLoader = new SkillLoader();
+
+    this.setupDispatcherListeners();
   }
 
-  private setupBrowserListeners(): void {
-    this.browser.on('screenshot-taken', (result: ScreenshotResult) => {
-      this.pushEvent({
-        type: 'system',
-        data: {
-          message: `📸 Screenshot captured: "${result.label}" by ${result.agentId}`,
-          screenshot: result,
-        },
-        timestamp: Date.now(),
-      });
+  private setupDispatcherListeners(): void {
+    this.dispatcher.on('agent-status', ({ agentId, status }) => {
+      this.agents.updateStatus(agentId, status);
+      this.emitEvent('agent:status', agentId, { status });
     });
 
-    this.browser.on('navigated', (data: { url: string; title: string; agentId: string }) => {
-      this.pushEvent({
-        type: 'system',
-        data: { message: `🌐 ${data.agentId} navigated to: ${data.title || data.url}` },
-        timestamp: Date.now(),
-      });
-    });
-  }
-
-  async connectBrowser(): Promise<boolean> {
-    const connected = await this.browser.connect();
-    if (connected) {
-      this.pushEvent({
-        type: 'system',
-        data: { message: '🎭 Playwright browser connected — visual tracking active' },
-        timestamp: Date.now(),
-      });
-    }
-    return connected;
-  }
-
-  async takeScreenshot(
-    agentId: string,
-    label: string,
-    url?: string
-  ): Promise<ScreenshotResult | null> {
-    return this.browser.captureProgress(agentId, label, url);
-  }
-
-  async getProgressReport(): Promise<string> {
-    return this.browser.generateProgressReport();
-  }
-
-  private initializeAgents(): void {
-    for (const persona of AGENT_PERSONAS) {
-      const agent = new Agent(persona);
-      this.setupAgentListeners(agent);
-      this.agents.set(persona.id, agent);
-    }
-  }
-
-  private setupAgentListeners(agent: Agent): void {
-    agent.on('status-change', (data) => {
-      this.pushEvent({
-        type: 'agent-status',
-        agentId: data.agentId,
-        data: { from: data.from, to: data.to },
-        timestamp: Date.now(),
-      });
+    this.dispatcher.on('task-complete', ({ agentId, taskId, cost, duration, turns }) => {
+      this.handleTaskComplete(taskId, agentId);
+      this.emitEvent('task:completed', agentId, { taskId, cost, duration, turns });
     });
 
-    agent.on('move', (data) => {
-      this.pushEvent({
-        type: 'agent-move',
-        agentId: data.agentId,
-        data: { position: data.position },
-        timestamp: Date.now(),
-      });
+    this.dispatcher.on('agent-failed', ({ agentId, taskId, exitCode }) => {
+      this.tasks.updateStatus(taskId, 'failed');
+      this.agents.clearTask(agentId);
+      this.emitEvent('task:failed', agentId, { taskId, exitCode });
     });
 
-    agent.on('message', (msg) => {
-      this.pushEvent({
-        type: 'agent-message',
-        agentId: msg.from,
-        data: { message: msg },
-        timestamp: Date.now(),
-      });
-      // Deliver to recipient
-      if (msg.to !== 'all') {
-        const recipient = this.agents.get(msg.to);
-        if (recipient) {
-          recipient.state.messages.push(msg);
-        }
-      }
-    });
-
-    agent.on('task-completed', (data) => {
-      this.metrics.totalTasksCompleted++;
-      this.pushEvent({
-        type: 'task-update',
-        agentId: data.agentId,
-        data: { taskId: data.taskId, status: 'done' },
-        timestamp: Date.now(),
-      });
-    });
-
-    agent.on('skill-activated', (data) => {
-      this.metrics.skillsExecuted++;
-      this.pushEvent({
-        type: 'skill-activated',
-        agentId: data.agentId,
-        data: { skillId: data.skillId, skillName: data.skillName },
-        timestamp: Date.now(),
-      });
-    });
-
-    agent.on('skill-completed', (data) => {
-      this.pushEvent({
-        type: 'skill-completed',
-        agentId: data.agentId,
-        data: { skillId: data.skillId, verified: data.verified, duration: data.duration },
-        timestamp: Date.now(),
-      });
-    });
-
-    agent.on('autonomous-decision', (data) => {
-      this.metrics.autonomousDecisions++;
-      this.pushEvent({
-        type: 'autonomous-decision',
-        agentId: data.agentId,
-        data: { decision: data.decision, outcome: data.outcome },
-        timestamp: Date.now(),
-      });
+    this.dispatcher.on('slot-freed', () => {
+      // Trigger next tick to fill the slot
+      if (this.running) this.tick();
     });
   }
 
-  private pushEvent(event: EngineEvent): void {
-    this.events.push(event);
-    if (this.events.length > 500) {
-      this.events = this.events.slice(-300);
-    }
-    this.emit('event', event);
-  }
+  start(goal?: string): Session {
+    const session = this.sessions.create(goal || 'New session');
+    this._sessionId = session.id;
 
-  async start(): Promise<void> {
+    // Initialize all 11 agents
+    this.agents.initializeForSession(session.id);
+
     this.running = true;
-    this.pushEvent({
-      type: 'system',
-      data: { message: 'Sage Team is starting up... [FULL AUTONOMY MODE]' },
-      timestamp: Date.now(),
-    });
+    this.emitEvent('system', null, { message: `Session started: ${session.id}` });
 
-    // Set initial agent statuses
-    for (const [, agent] of this.agents) {
-      agent.moveToDesk();
+    if (goal) {
+      // Async goal decomposition — don't await, let it run
+      this.submitGoal(goal).catch(err => {
+        this.emitEvent('system', null, { message: `Goal decomposition failed: ${err.message}` });
+      });
     }
 
-    // Start the simulation tick
-    this.tickInterval = setInterval(() => {
-      this.tick();
-    }, 3000);
+    return session;
+  }
 
-    this.emit('started');
+  resume(sessionId: string): boolean {
+    const session = this.sessions.findById(sessionId);
+    if (!session) return false;
+
+    this._sessionId = session.id;
+    this.running = true;
+
+    // Verify agents exist
+    const agents = this.agents.findBySession(session.id);
+    if (agents.length === 0) {
+      this.agents.initializeForSession(session.id);
+    }
+
+    this.emitEvent('system', null, { message: `Session resumed: ${session.id}` });
+    return true;
   }
 
   stop(): void {
     this.running = false;
-    if (this.tickInterval) {
-      clearInterval(this.tickInterval);
-      this.tickInterval = null;
+    if (this.tickTimer) {
+      clearInterval(this.tickTimer);
+      this.tickTimer = null;
     }
-    for (const [, agent] of this.agents) {
-      agent.stopAutonomy();
-    }
-    this.emit('stopped');
-  }
-
-  private tick(): void {
-    if (!this.running) return;
-    this.tickCount++;
-
-    // Simulate autonomous agent activities
-    for (const [, agent] of this.agents) {
-      this.simulateAutonomousActivity(agent);
-    }
-
-    // Periodic team interactions with context
-    if (this.tickCount % 8 === 0) {
-      this.simulateTeamInteraction();
-    }
-
-    // Periodic skill activations
-    if (this.tickCount % 12 === 0) {
-      this.simulateSkillActivation();
-    }
-
-    // Periodic autonomous decisions
-    if (this.tickCount % 15 === 0) {
-      this.simulateAutonomousDecision();
-    }
-
-    this.emit('tick', { count: this.tickCount, metrics: this.metrics });
-  }
-
-  private simulateAutonomousActivity(agent: Agent): void {
-    if (agent.state.currentTask) {
-      // Agent is working on a task - cycle through contextual statuses
-      const taskContext = this.tasks.find((t) => t.id === agent.state.currentTask);
-      const workStatuses = this.getWorkStatusesForRole(agent.role);
-
-      const current = workStatuses.indexOf(agent.status);
-      if (current >= 0 && Math.random() > 0.7) {
-        const next = workStatuses[(current + 1) % workStatuses.length];
-        agent.setStatus(next);
-      }
-
-      // Task completion with skill-based probability
-      const completionChance = agent.state.activeSkills.some((s) => s.status === 'running') ? 0.88 : 0.92;
-      if (Math.random() > completionChance) {
-        // Complete any running skills first
-        for (const skill of agent.state.activeSkills.filter((s) => s.status === 'running')) {
-          agent.completeSkill(skill.skillId, `Completed ${skill.skillId} successfully`, true);
-        }
-        agent.completeTask();
-        this.metrics.totalLinesOfCode += Math.floor(Math.random() * 80) + 20;
-
-        // Update task
-        if (taskContext) {
-          taskContext.status = 'done';
-        }
-      }
-    } else {
-      // Autonomous idle behavior based on role
-      const idleActivities = this.getIdleActivitiesForRole(agent.role);
-      if (Math.random() > 0.75) {
-        const activity = idleActivities[Math.floor(Math.random() * idleActivities.length)];
-        agent.setStatus(activity);
-      }
-
-      // Autonomous task pickup
-      if (agent.state.persona.autonomyConfig.canSelfAssignTasks) {
-        const available = this.findBestTaskForAgent(agent);
-        if (available && Math.random() > 0.5) {
-          available.assignee = agent.id;
-          available.status = 'in-progress';
-          agent.assignTask(available);
-
-          // Auto-activate relevant skills
-          if (available.requiredSkills && available.requiredSkills.length > 0) {
-            for (const skillId of available.requiredSkills.slice(0, agent.state.persona.autonomyConfig.maxConcurrentSkills)) {
-              agent.activateSkill(skillId);
-            }
-          }
-
-          agent.sendMessage('all', `Picking up "${available.title}" — I have the right skills for this.`, 'work');
-        }
-      }
-    }
-
-    // Small random movement near desk
-    if (Math.random() > 0.85) {
-      const dx = Math.floor(Math.random() * 3) - 1;
-      const dy = Math.floor(Math.random() * 3) - 1;
-      agent.moveTo(
-        Math.max(1, Math.min(49, agent.state.persona.desk.x + dx)),
-        Math.max(1, Math.min(15, agent.state.persona.desk.y + dy))
-      );
-    }
-  }
-
-  private getWorkStatusesForRole(role: string): AgentStatus[] {
-    const roleStatuses: Record<string, AgentStatus[]> = {
-      'ceo': ['thinking', 'planning', 'meeting', 'dispatching'],
-      'cto': ['thinking', 'reviewing', 'coding', 'security-audit'],
-      'dev-senior': ['coding', 'testing', 'debugging', 'reviewing'],
-      'dev-fullstack': ['coding', 'testing', 'debugging', 'researching'],
-      'qa-lead': ['testing', 'reviewing', 'debugging', 'writing-docs'],
-      'devops': ['deploying', 'debugging', 'coding', 'security-audit'],
-      'product-manager': ['thinking', 'writing-docs', 'brainstorming', 'meeting'],
-      'ux-designer': ['brainstorming', 'coding', 'reviewing', 'researching'],
-      'architect': ['thinking', 'planning', 'writing-docs', 'reviewing'],
-      'scrum-master': ['meeting', 'planning', 'writing-docs', 'thinking'],
-      'data-engineer': ['coding', 'testing', 'researching', 'debugging'],
-    };
-    return roleStatuses[role] || ['coding', 'thinking', 'researching', 'debugging'];
-  }
-
-  private getIdleActivitiesForRole(role: string): AgentStatus[] {
-    const activities: Record<string, AgentStatus[]> = {
-      'ceo': ['thinking', 'meeting', 'brainstorming'],
-      'cto': ['reviewing', 'researching', 'security-audit'],
-      'dev-senior': ['reviewing', 'researching', 'pair-programming'],
-      'dev-fullstack': ['researching', 'reviewing', 'coding'],
-      'qa-lead': ['reviewing', 'testing', 'writing-docs'],
-      'devops': ['researching', 'security-audit', 'break'],
-      'product-manager': ['brainstorming', 'researching', 'writing-docs'],
-      'ux-designer': ['brainstorming', 'researching', 'break'],
-      'architect': ['researching', 'writing-docs', 'reviewing'],
-      'scrum-master': ['meeting', 'writing-docs', 'break'],
-      'data-engineer': ['researching', 'reviewing', 'coding'],
-    };
-    return activities[role] || ['idle', 'researching', 'break'];
-  }
-
-  private findBestTaskForAgent(agent: Agent): Task | undefined {
-    const available = this.tasks.filter((t) => t.status === 'todo' && !t.assignee);
-    if (available.length === 0) return undefined;
-
-    // Score tasks based on skill match
-    const scored = available.map((task) => {
-      let score = 0;
-
-      // Check required skills match
-      if (task.requiredSkills) {
-        const matching = task.requiredSkills.filter((s) =>
-          agent.state.persona.skillIds.includes(s)
-        );
-        score += matching.length * 10;
-      }
-
-      // Priority bonus
-      const priorityScores: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-      score += priorityScores[task.priority] || 1;
-
-      // Check if task description matches agent skills
-      const desc = (task.title + ' ' + task.description).toLowerCase();
-      for (const skill of agent.state.persona.skills) {
-        if (desc.includes(skill.toLowerCase())) score += 5;
-      }
-
-      return { task, score };
-    });
-
-    scored.sort((a, b) => b.score - a.score);
-    return scored[0]?.score > 0 ? scored[0].task : available[0];
-  }
-
-  private simulateSkillActivation(): void {
-    const agents = Array.from(this.agents.values());
-    const busyAgent = agents.find((a) =>
-      a.state.currentTask && a.state.activeSkills.filter((s) => s.status === 'running').length === 0
-    );
-
-    if (busyAgent) {
-      const task = this.tasks.find((t) => t.id === busyAgent.state.currentTask);
-      if (task) {
-        // Auto-detect which skill to activate based on task context
-        const autoSkill = busyAgent.shouldAutoSelectSkill(task.title + ' ' + task.description);
-        if (autoSkill) {
-          busyAgent.activateSkill(autoSkill);
-        } else if (busyAgent.state.persona.skillIds.length > 0) {
-          // Activate a random skill from the agent's arsenal
-          const randomSkill = busyAgent.state.persona.skillIds[
-            Math.floor(Math.random() * busyAgent.state.persona.skillIds.length)
-          ];
-          busyAgent.activateSkill(randomSkill);
-        }
-      }
-    }
-  }
-
-  private simulateAutonomousDecision(): void {
-    const agents = Array.from(this.agents.values());
-    const agent = agents[Math.floor(Math.random() * agents.length)];
-
-    if (!agent.isAutonomous) return;
-
-    const decisions: AgentDecision[] = [
-      {
-        type: 'work',
-        action: `Optimizing current implementation using ${agent.state.persona.skills[0]} expertise`,
-        reasoning: 'Proactively improving code quality',
-        confidence: 0.85,
-      },
-      {
-        type: 'review',
-        action: 'Reviewing recent changes for quality',
-        reasoning: 'Maintaining code standards as part of continuous review',
-        confidence: 0.9,
-      },
-      {
-        type: 'report',
-        action: 'Sharing progress update with team',
-        reasoning: 'Keeping team informed of status',
-        confidence: 0.95,
-      },
-    ];
-
-    if (agent.canDelegate) {
-      decisions.push({
-        type: 'delegate',
-        action: 'Identified subtask that can be handled by a specialist',
-        target: agents[Math.floor(Math.random() * agents.length)].id,
-        reasoning: 'Better skill match for this specific task',
-        confidence: 0.8,
-      });
-    }
-
-    if (agent.canDispatch) {
-      decisions.push({
-        type: 'dispatch',
-        action: 'Breaking work into parallel tasks',
-        reasoning: 'Independent subtasks identified — can run concurrently',
-        confidence: 0.75,
-      });
-    }
-
-    const decision = decisions[Math.floor(Math.random() * decisions.length)];
-    agent.recordDecision(decision, 'success');
-  }
-
-  private simulateTeamInteraction(): void {
-    const agentList = Array.from(this.agents.values());
-    const sender = agentList[Math.floor(Math.random() * agentList.length)];
-    const receiver = agentList[Math.floor(Math.random() * agentList.length)];
-
-    if (sender.id === receiver.id) return;
-
-    // Context-aware interactions based on agent roles and skills
-    const interactions = this.getContextualInteractions(sender, receiver);
-    const msg = interactions[Math.floor(Math.random() * interactions.length)];
-    sender.sendMessage(receiver.id, msg, 'general');
-  }
-
-  private getContextualInteractions(sender: Agent, receiver: Agent): string[] {
-    const senderSkills = sender.getActiveSkillNames();
-    const base = [
-      `${receiver.name}, I'm using my ${sender.state.persona.skills[0]} expertise on this — mind reviewing?`,
-      `Great work on that PR, ${receiver.name}! Clean implementation following our code standards.`,
-      `@${receiver.name} Sprint velocity is up 15% this week. Team is operating well.`,
-    ];
-
-    // Role-specific interactions
-    if (sender.role === 'qa-lead') {
-      base.push(
-        `${receiver.name}, found an edge case in the auth module. Running TDD protocol to write a failing test first.`,
-        `${receiver.name}, all verification steps pass. CONFIRMED with fresh test run. Approving the PR.`,
-        `Heads up ${receiver.name} — test coverage dropped below 80%. Let's fix this before merging.`,
-      );
-    }
-    if (sender.role === 'devops') {
-      base.push(
-        `${receiver.name}, deploying v${Math.floor(Math.random() * 10)}.${Math.floor(Math.random() * 20)}.${Math.floor(Math.random() * 50)} to staging. Canary at 10%.`,
-        `${receiver.name}, security scan passed. No vulnerabilities detected. Proceeding to production.`,
-        `CI/CD pipeline green across all 10 stages. Ready for deployment approval.`,
-      );
-    }
-    if (sender.role === 'architect') {
-      base.push(
-        `${receiver.name}, wrote an ADR for the new service boundary. Please review before implementation.`,
-        `Proposing event-driven pattern for the notification system. Thoughts, ${receiver.name}?`,
-      );
-    }
-    if (sender.role === 'ceo') {
-      base.push(
-        `Team, I've dispatched parallel tasks to ${receiver.name} and others. Let's move fast on this sprint.`,
-        `${receiver.name}, your autonomous decision-making has been excellent. Keep it up.`,
-      );
-    }
-    if (senderSkills.length > 0) {
-      base.push(
-        `${receiver.name}, currently executing skill: ${senderSkills[0]}. Will share results when verified.`,
-      );
-    }
-
-    return base;
+    this.dispatcher.killAll();
   }
 
   async submitGoal(goal: string): Promise<void> {
-    const ceo = this.agents.get('sage');
-    if (!ceo) return;
+    if (!this._sessionId) throw new Error('No active session');
 
-    ceo.setStatus('thinking');
-    ceo.activateSkill('sp-brainstorming');
+    // Update agent status
+    this.agents.updateStatus('sage', 'planning');
+    this.emitEvent('agent:status', 'sage', { status: 'planning' });
 
-    this.pushEvent({
-      type: 'system',
-      data: { message: `New goal received: "${goal}" — CEO activating brainstorming protocol` },
-      timestamp: Date.now(),
+    // Build roster for CEO
+    const roster: AgentRoster[] = PERSONAS.map(p => ({
+      id: p.id,
+      name: p.name,
+      role: p.role,
+      skills: AGENT_SKILLS[p.id] || [],
+    }));
+
+    // Decompose goal
+    const result = await this.ceoBrain.decompose(goal, roster);
+
+    // Create sprint
+    const sprint = this.sprints.create({
+      name: result.sprint.name,
+      goal: result.sprint.goal,
+      sessionId: this._sessionId,
     });
 
-    try {
-      const personas = Array.from(this.agents.values()).map((a) => a.state.persona);
-      const response = await this.claude.delegate(ceo.state.persona, goal, personas);
+    // Create tasks with dependency mapping
+    const taskIdMap: Record<string, string> = {};
 
-      // Parse the delegation response
-      const jsonMatch = response.content.match(/```json\n([\s\S]*?)\n```/);
-      if (jsonMatch) {
-        const plan = JSON.parse(jsonMatch[1]);
-        if (plan.tasks) {
-          for (const t of plan.tasks) {
-            const task: Task = {
-              id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-              title: t.title,
-              description: t.description,
-              assignee: t.assignee || null,
-              status: t.assignee ? 'todo' : 'backlog',
-              priority: t.priority || 'medium',
-              createdBy: 'sage',
-              createdAt: Date.now(),
-              storyPoints: t.storyPoints || 3,
-              subtasks: [],
-              dependencies: t.dependencies || [],
-              requiredSkills: t.requiredSkills || [],
-            };
-            this.tasks.push(task);
+    for (let i = 0; i < result.tasks.length; i++) {
+      const t = result.tasks[i];
+      // Resolve depends_on from index references to real IDs
+      const resolvedDeps = t.depends_on
+        .map(dep => taskIdMap[dep])
+        .filter(Boolean);
 
-            // Assign to agent if specified
-            if (task.assignee) {
-              const agent = this.agents.get(task.assignee);
-              if (agent) {
-                task.status = 'in-progress';
-                agent.assignTask(task);
-
-                // Auto-activate required skills
-                for (const skillId of task.requiredSkills.slice(0, agent.state.persona.autonomyConfig.maxConcurrentSkills)) {
-                  agent.activateSkill(skillId);
-                }
-
-                agent.recordDecision({
-                  type: 'work',
-                  action: `Assigned: ${task.title}`,
-                  reasoning: 'Task delegated by CEO based on skill match',
-                  confidence: 0.9,
-                }, 'pending');
-              }
-            }
-          }
-
-          // Create sprint
-          this.currentSprint = {
-            id: `sprint-${Date.now()}`,
-            name: plan.sprintGoal || 'Sprint',
-            tasks: this.tasks.filter((t) => t.status !== 'done'),
-            startDate: Date.now(),
-            endDate: Date.now() + this.config.sprintDurationDays * 86400000,
-            goal: plan.sprintGoal || goal,
-          };
-        }
-      }
-
-      ceo.completeSkill('sp-brainstorming', 'Goal decomposed and delegated successfully', true);
-      ceo.setStatus('idle');
-
-      // CEO records delegation decision
-      ceo.recordDecision({
-        type: 'dispatch',
-        action: `Decomposed goal into ${this.tasks.length} tasks and dispatched to team`,
-        reasoning: `Matched tasks to agent expertise for optimal execution`,
-        confidence: 0.9,
-      }, 'success');
-
-      ceo.sendMessage('all',
-        `Team, I've analyzed our new goal and dispatched ${this.tasks.length} tasks. ` +
-        `Each of you has been assigned work matching your skills. ` +
-        `Operate autonomously — I trust your expertise. Report blockers immediately.`,
-        'announcements'
-      );
-    } catch (error) {
-      ceo.completeSkill('sp-brainstorming', 'Failed', false);
-      ceo.setStatus('idle');
-      this.pushEvent({
-        type: 'system',
-        data: { message: `Error processing goal: ${(error as Error).message}` },
-        timestamp: Date.now(),
+      const task = this.tasks.create({
+        title: t.title,
+        description: t.description,
+        priority: t.priority,
+        requiredSkills: t.required_skills,
+        dependsOn: resolvedDeps,
+        sprintId: sprint.id,
+        sessionId: this._sessionId,
+        assigneeId: t.assignee,
       });
+
+      taskIdMap[`task-${i}`] = task.id;
+    }
+
+    // CEO done planning
+    this.agents.updateStatus('sage', 'idle');
+    this.emitEvent('system', null, {
+      message: `Sprint "${result.sprint.name}" created with ${result.tasks.length} tasks`,
+    });
+
+    // Start tick loop if not running
+    if (!this.tickTimer) {
+      this.startTickLoop();
     }
   }
 
-  async executeAgentAction(agentId: string): Promise<string | null> {
-    const agent = this.agents.get(agentId);
-    if (!agent || !agent.state.currentTask) return null;
+  private startTickLoop(): void {
+    this.tickTimer = setInterval(() => {
+      if (this.running) this.tick();
+    }, 5000);
+  }
 
-    const task = this.tasks.find((t) => t.id === agent.state.currentTask);
-    if (!task) return null;
+  private tick(): void {
+    if (!this._sessionId) return;
 
-    agent.setStatus('thinking');
+    const available = this.tasks.findAvailable(this._sessionId, this.dispatcher.availableSlots());
+    if (available.length === 0) return;
 
-    try {
-      const teamContext = this.getTeamContext();
-      const recentMessages = this.getRecentMessages(10);
+    for (const task of available) {
+      const agentId = task.assignee_id;
+      if (!agentId) continue;
 
-      const response = await this.claude.agentThink(
-        agent.state.persona,
-        `${task.title}: ${task.description}`,
-        teamContext,
-        recentMessages
-      );
+      const agent = this.agents.findById(agentId);
+      if (!agent) continue;
 
-      // Try to parse decision from response
-      try {
-        const jsonMatch = response.content.match(/```json\n([\s\S]*?)\n```/);
-        if (jsonMatch) {
-          const decision: AgentDecision = JSON.parse(jsonMatch[1]);
-          agent.recordDecision(decision, 'success');
+      const persona = PERSONAS.find(p => p.id === agentId);
+      if (!persona) continue;
 
-          // Handle delegation
-          if (decision.type === 'delegate' && decision.target) {
-            const target = this.agents.get(decision.target);
-            if (target) {
-              agent.sendMessage(decision.target, decision.action, 'delegation');
-            }
-          }
+      // Load skills for this task
+      const requiredSkills: string[] = JSON.parse(task.required_skills || '[]');
+      const loadedSkills = this.skillLoader.loadSkillsForTask(requiredSkills, 25000);
+      const skillContents = loadedSkills.map(s => `## ${s.id} (${s.source})\n${s.content}`);
 
-          // Handle skill execution
-          if (decision.type === 'skill-execute' && decision.skillId) {
-            agent.activateSkill(decision.skillId);
-          }
-        }
-      } catch {
-        // Non-JSON response, that's fine
+      // Build system prompt
+      const systemPrompt = this.promptBuilder.build({
+        agent: { id: persona.id, name: persona.name, role: persona.role, description: persona.description },
+        company: { name: this.config.companyName, mission: this.config.mission },
+        skills: skillContents,
+        task: { title: task.title, description: task.description || '', requiredSkills },
+      });
+
+      // Determine working directory
+      const cwd = this.config.autonomyMode === 'sandbox'
+        ? this.prManager.worktreePath(agentId, task.id)
+        : process.cwd();
+
+      // Mark task as in_progress
+      this.tasks.assign(task.id, agentId);
+      this.agents.assignTask(agentId, task.id);
+
+      // Spawn agent
+      this.dispatcher.spawnAgent(
+        agentId,
+        task.id,
+        systemPrompt,
+        `Execute this task: ${task.title}\n\n${task.description || ''}`,
+        cwd,
+      ).catch(err => {
+        this.emitEvent('system', agentId, { message: `Failed to spawn: ${err.message}` });
+      });
+
+      this.emitEvent('task:assigned', agentId, { taskId: task.id });
+    }
+  }
+
+  private handleTaskComplete(taskId: string, agentId: string): void {
+    this.tasks.updateStatus(taskId, 'completed');
+    this.agents.clearTask(agentId);
+
+    if (this._sessionId && this.config.autonomyMode === 'sandbox') {
+      // Create PR record
+      const task = this.tasks.findById(taskId);
+      if (task) {
+        const slug = this.prManager.slugify(task.title);
+        const branch = this.prManager.branchName(agentId, slug);
+        this.pullRequests.create({
+          taskId,
+          agentId,
+          branch,
+          sessionId: this._sessionId,
+        });
+        this.emitEvent('pr:created', agentId, { taskId, branch });
       }
+    }
 
-      agent.setStatus('coding');
-      this.metrics.totalLinesOfCode += Math.floor(Math.random() * 50) + 10;
+    // Check if sprint is complete
+    this.checkSprintComplete();
+  }
 
-      return response.content;
-    } catch (error) {
-      agent.setStatus('idle');
-      return null;
+  private checkSprintComplete(): void {
+    if (!this._sessionId) return;
+    const tasks = this.tasks.findBySession(this._sessionId);
+    const allDone = tasks.every((t: any) => t.status === 'completed' || t.status === 'failed');
+    if (allDone && tasks.length > 0) {
+      const sprint = this.sprints.findActive(this._sessionId);
+      if (sprint) {
+        this.sprints.complete(sprint.id);
+        this.emitEvent('celebration:sprint-complete', null, {
+          sprintId: sprint.id,
+          tasksCompleted: tasks.filter((t: any) => t.status === 'completed').length,
+        });
+      }
     }
   }
 
-  private getTeamContext(): string {
-    const statuses = Array.from(this.agents.values())
-      .map((a) => {
-        const skills = a.getActiveSkillNames();
-        const skillInfo = skills.length > 0 ? ` [Skills: ${skills.join(', ')}]` : '';
-        return `${a.emoji} ${a.name} (${a.state.persona.title}): ${a.getStatusText()}${skillInfo}`;
-      })
-      .join('\n');
-
-    const taskSummary = this.tasks
-      .filter((t) => t.status !== 'done')
-      .map((t) => {
-        const skills = t.requiredSkills?.length
-          ? ` (skills: ${t.requiredSkills.join(', ')})`
-          : '';
-        return `- [${t.status}] ${t.title} (assigned: ${t.assignee || 'unassigned'})${skills}`;
-      })
-      .join('\n');
-
-    return `## Team Status\n${statuses}\n\n## Active Tasks\n${taskSummary || 'No active tasks.'}\n\n## Metrics\n- Tasks completed: ${this.metrics.totalTasksCompleted}\n- Skills executed: ${this.metrics.skillsExecuted}\n- Autonomous decisions: ${this.metrics.autonomousDecisions}\n- Team morale: ${this.metrics.teamMorale}%`;
+  // Public API
+  getAgents(): any[] {
+    if (!this._sessionId) return [];
+    return this.agents.findBySession(this._sessionId);
   }
 
-  private getRecentMessages(count: number): import('../types').ChatMessage[] {
-    const allMessages: import('../types').ChatMessage[] = [];
-    for (const [, agent] of this.agents) {
-      allMessages.push(...agent.state.messages);
+  getAvailableTasks(limit: number): any[] {
+    if (!this._sessionId) return [];
+    return this.tasks.findAvailable(this._sessionId, limit);
+  }
+
+  getTasks(): any[] {
+    if (!this._sessionId) return [];
+    return this.tasks.findBySession(this._sessionId);
+  }
+
+  getPendingPRs(): any[] {
+    if (!this._sessionId) return [];
+    return this.pullRequests.findPending(this._sessionId);
+  }
+
+  async approvePR(prId: string): Promise<void> {
+    this.pullRequests.updateStatus(prId, 'user_approved');
+    const pr = this.pullRequests.findById(prId);
+    if (pr) {
+      // CEO merges
+      this.pullRequests.updateStatus(prId, 'merged', { mergedBy: 'sage' });
+      this.emitEvent('pr:merged', 'sage', { prId, branch: pr.branch });
+      this.emitEvent('celebration:pr-merged', pr.agent_id, { prId });
     }
-    return allMessages.sort((a, b) => b.timestamp - a.timestamp).slice(0, count);
   }
 
-  getAgent(id: string): Agent | undefined {
-    return this.agents.get(id);
+  rejectPR(prId: string, feedback: string): void {
+    this.pullRequests.updateStatus(prId, 'user_rejected', { feedback });
+    const pr = this.pullRequests.findById(prId);
+    if (pr && this._sessionId) {
+      // Re-queue task with feedback
+      this.tasks.updateStatus(pr.task_id, 'pending');
+      this.emitEvent('pr:rejected', pr.agent_id, { prId, feedback });
+    }
   }
 
-  getAgentList(): Agent[] {
-    return Array.from(this.agents.values());
+  private emitEvent(type: string, agentId: string | null, data: Record<string, unknown>): void {
+    if (this._sessionId) {
+      this.events.log(type, agentId, data, this._sessionId);
+    }
+    this.emit('event', { type, agentId, data, timestamp: new Date().toISOString() });
   }
 }

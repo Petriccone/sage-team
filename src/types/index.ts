@@ -1,248 +1,250 @@
+// === Agent Types ===
 export type AgentRole =
-  | 'ceo'
-  | 'cto'
-  | 'dev-senior'
-  | 'dev-fullstack'
-  | 'qa-lead'
-  | 'devops'
-  | 'product-manager'
-  | 'ux-designer'
-  | 'data-engineer'
-  | 'scrum-master'
-  | 'architect';
+  | 'ceo' | 'cto' | 'architect' | 'dev-senior' | 'dev-fullstack'
+  | 'qa-lead' | 'devops' | 'product-manager' | 'ux-designer'
+  | 'scrum-master' | 'data-engineer';
 
 export type AgentStatus =
-  | 'idle'
-  | 'thinking'
-  | 'coding'
-  | 'reviewing'
-  | 'testing'
-  | 'deploying'
-  | 'meeting'
-  | 'break'
-  | 'pair-programming'
-  | 'researching'
-  | 'writing-docs'
-  | 'debugging'
-  | 'brainstorming'
-  | 'planning'
-  | 'executing-skill'
-  | 'security-audit'
-  | 'dispatching';
+  | 'idle' | 'thinking' | 'coding' | 'testing' | 'reviewing'
+  | 'deploying' | 'meeting' | 'planning' | 'debugging'
+  | 'designing' | 'walking' | 'pairing' | 'crisis'
+  | 'brainstorming' | 'dispatching' | 'celebrating';
 
 export type AgentMood = 'focused' | 'happy' | 'stressed' | 'creative' | 'collaborative';
 
-export interface Position {
-  x: number;
-  y: number;
-}
+export type AutonomyMode = 'sandbox' | 'direct' | 'supervised';
 
-// ─── Skill System ───────────────────────────────────────────────────────────
+// === Task Types ===
+export type TaskStatus = 'pending' | 'in_progress' | 'in_review' | 'completed' | 'failed';
+export type TaskPriority = 1 | 2 | 3 | 4 | 5; // 1=critical, 5=low
 
-export type SkillCategory =
-  | 'development'
-  | 'testing'
-  | 'architecture'
-  | 'security'
-  | 'devops'
-  | 'data-ai'
-  | 'business'
-  | 'workflow'
-  | 'collaboration'
-  | 'design'
-  | 'debugging'
-  | 'documentation';
+// === PR Types ===
+export type PRStatus =
+  | 'pending_review' | 'agent_reviewed'
+  | 'user_approved' | 'user_rejected'
+  | 'merged' | 'rework';
 
-export type SkillTrigger = string;
+// === Skill Types ===
+export type SkillSource = 'superpowers' | 'antigravity' | 'built-in';
+export type SkillExecutionStatus = 'active' | 'completed' | 'failed';
 
-export interface SkillDefinition {
+// === Core Entities ===
+export interface Agent {
   id: string;
-  name: string;
-  category: SkillCategory;
-  description: string;
-  triggers: SkillTrigger[];
-  applicableRoles: AgentRole[];
-  protocol: string;
-  verificationSteps: string[];
-  source: 'superpowers' | 'antigravity' | 'built-in';
-}
-
-export interface SkillExecution {
-  skillId: string;
-  agentId: string;
-  startedAt: number;
-  completedAt: number | null;
-  status: 'running' | 'completed' | 'failed' | 'blocked';
-  output: string | null;
-  verificationPassed: boolean;
-}
-
-// ─── Autonomy System ────────────────────────────────────────────────────────
-
-export type AutonomyLevel = 'full' | 'supervised' | 'manual';
-
-export interface AutonomyConfig {
-  level: AutonomyLevel;
-  canSelfAssignTasks: boolean;
-  canDelegateToOthers: boolean;
-  canCreateSubtasks: boolean;
-  canRequestCodeReview: boolean;
-  canDispatchParallelWork: boolean;
-  maxConcurrentSkills: number;
-  requiresApprovalFor: string[];
-}
-
-export interface AgentDecision {
-  type: 'work' | 'delegate' | 'request-help' | 'report' | 'review' | 'brainstorm' | 'dispatch' | 'skill-execute';
-  action: string;
-  target?: string;
-  skillId?: string;
-  reasoning: string;
-  confidence: number;
-}
-
-// ─── Agent Types ────────────────────────────────────────────────────────────
-
-export interface AgentPersona {
-  id: string;
-  name: string;
   role: AgentRole;
-  emoji: string;
-  title: string;
-  personality: string;
-  skills: string[];
-  skillIds: string[];
-  systemPrompt: string;
-  autonomyConfig: AutonomyConfig;
-  desk: Position;
-  color: string;
-}
-
-export interface AgentState {
-  persona: AgentPersona;
+  name: string;
   status: AgentStatus;
   mood: AgentMood;
-  currentTask: string | null;
-  activeSkills: SkillExecution[];
-  position: Position;
-  messages: ChatMessage[];
-  memory: MemoryEntry[];
-  stats: AgentStats;
-  autonomyLog: AutonomyLogEntry[];
-}
-
-export interface AutonomyLogEntry {
-  timestamp: number;
-  decision: AgentDecision;
-  outcome: 'success' | 'failure' | 'pending';
-}
-
-export interface AgentStats {
-  tasksCompleted: number;
-  linesWritten: number;
-  reviewsDone: number;
-  meetingsAttended: number;
-  bugsFixed: number;
-  skillsExecuted: number;
-  autonomousDecisions: number;
-  delegationsMade: number;
-}
-
-export interface ChatMessage {
-  id: string;
-  from: string;
-  to: string | 'all';
-  content: string;
-  timestamp: number;
-  channel: string;
-}
-
-export interface MemoryEntry {
-  key: string;
-  value: string;
-  timestamp: number;
-  importance: number;
+  positionRoom: string;
+  positionSeat: number | null;
+  currentTaskId: string | null;
+  activeSkills: string[];
+  sessionId: string;
+  updatedAt: string;
 }
 
 export interface Task {
   id: string;
   title: string;
-  description: string;
-  assignee: string | null;
-  status: 'backlog' | 'todo' | 'in-progress' | 'review' | 'testing' | 'done';
-  priority: 'critical' | 'high' | 'medium' | 'low';
-  createdBy: string;
-  createdAt: number;
-  storyPoints: number;
-  subtasks: string[];
-  dependencies: string[];
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assigneeId: string | null;
   requiredSkills: string[];
+  dependsOn: string[];
+  sprintId: string;
+  sessionId: string;
+  createdAt: string;
+  completedAt: string | null;
 }
 
 export interface Sprint {
   id: string;
   name: string;
-  tasks: Task[];
-  startDate: number;
-  endDate: number;
-  goal: string;
+  goal: string | null;
+  status: 'active' | 'completed';
+  sessionId: string;
+  startedAt: string;
+  completedAt: string | null;
 }
 
+export interface Message {
+  id: string;
+  fromAgent: string;
+  toAgent: string | null;
+  content: string;
+  type: 'chat' | 'decision' | 'review' | 'crisis';
+  sessionId: string;
+  timestamp: string;
+}
+
+export interface Event {
+  id: number;
+  type: string;
+  agentId: string | null;
+  data: Record<string, unknown> | null;
+  sessionId: string;
+  timestamp: string;
+}
+
+export interface Decision {
+  id: string;
+  agentId: string;
+  type: 'delegate' | 'self-assign' | 'escalate' | 'dispatch' | 'crisis';
+  action: string;
+  reasoning: string | null;
+  confidence: number;
+  outcome: 'success' | 'failure' | 'pending';
+  sessionId: string;
+  timestamp: string;
+}
+
+export interface PullRequest {
+  id: string;
+  taskId: string;
+  agentId: string;
+  branch: string;
+  status: PRStatus;
+  reviewNotes: string | null;
+  userFeedback: string | null;
+  mergedBy: string | null;
+  sessionId: string;
+  createdAt: string;
+  mergedAt: string | null;
+}
+
+export interface SkillExecution {
+  id: string;
+  agentId: string;
+  skillId: string;
+  skillSource: SkillSource;
+  taskId: string | null;
+  status: SkillExecutionStatus;
+  output: string | null;
+  sessionId: string;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export interface Session {
+  id: string;
+  goal: string;
+  status: 'active' | 'paused' | 'completed';
+  startedAt: string;
+  resumedAt: string | null;
+  completedAt: string | null;
+}
+
+// === Configuration ===
 export interface CompanyConfig {
-  name: string;
+  companyName: string;
   mission: string;
-  apiKey: string;
   model: string;
   maxConcurrentAgents: number;
-  sprintDurationDays: number;
-  workingHoursStart: number;
-  workingHoursEnd: number;
-  enableVisual: boolean;
-  projectPath: string;
-  autonomyLevel: AutonomyLevel;
+  autonomyMode: AutonomyMode;
+  apiKey: string;
 }
 
-export interface OfficeTile {
-  char: string;
-  fg: string;
-  bg: string;
-  label?: string;
+// === WebSocket Events ===
+export interface WSAgentMove {
+  type: 'agent:move';
+  agentId: string;
+  to: { room: string; seat?: number };
 }
 
-export interface EngineEvent {
-  type:
-    | 'agent-status'
-    | 'agent-move'
-    | 'agent-message'
-    | 'task-update'
-    | 'sprint-update'
-    | 'system'
-    | 'skill-activated'
-    | 'skill-completed'
-    | 'autonomous-decision'
-    | 'dispatch-parallel';
-  agentId?: string;
-  data: Record<string, unknown>;
-  timestamp: number;
+export interface WSAgentStatus {
+  type: 'agent:status';
+  agentId: string;
+  status: AgentStatus;
+  detail?: string;
 }
 
-export interface DashboardState {
-  agents: Map<string, AgentState>;
-  tasks: Task[];
-  currentSprint: Sprint | null;
-  events: EngineEvent[];
-  companyMetrics: CompanyMetrics;
+export interface WSMeetingStart {
+  type: 'meeting:start';
+  room: string;
+  agents: string[];
+  topic: string;
 }
 
-export interface CompanyMetrics {
-  totalTasksCompleted: number;
-  totalLinesOfCode: number;
-  sprintVelocity: number;
-  teamMorale: number;
-  bugsFound: number;
-  bugsFixed: number;
-  deployments: number;
-  uptime: number;
-  skillsExecuted: number;
-  autonomousDecisions: number;
+export interface WSMeetingEnd {
+  type: 'meeting:end';
+  room: string;
+}
+
+export interface WSCrisis {
+  type: 'crisis:start';
+  severity: 'critical' | 'high';
+  message: string;
+  agents: string[];
+}
+
+export interface WSCrisisResolved {
+  type: 'crisis:resolved';
+  message: string;
+}
+
+export interface WSTaskAssigned {
+  type: 'task:assigned';
+  taskId: string;
+  agentId: string;
+}
+
+export interface WSTaskCompleted {
+  type: 'task:completed';
+  taskId: string;
+  agentId: string;
+}
+
+export interface WSSkillActivated {
+  type: 'skill:activated';
+  agentId: string;
+  skillId: string;
+  phase?: string;
+}
+
+export interface WSPRCreated {
+  type: 'pr:created';
+  prId: string;
+  agentId: string;
+  branch: string;
+}
+
+export interface WSPRMerged {
+  type: 'pr:merged';
+  prId: string;
+  mergedBy: string;
+}
+
+export interface WSCelebration {
+  type: 'celebration:pr-merged' | 'celebration:deploy' | 'celebration:sprint-complete';
+  [key: string]: unknown;
+}
+
+export interface WSChat {
+  type: 'chat:message';
+  from: string;
+  to: string | null;
+  content: string;
+}
+
+export type WSEvent =
+  | WSAgentMove | WSAgentStatus
+  | WSMeetingStart | WSMeetingEnd
+  | WSCrisis | WSCrisisResolved
+  | WSTaskAssigned | WSTaskCompleted
+  | WSSkillActivated
+  | WSPRCreated | WSPRMerged
+  | WSCelebration | WSChat;
+
+// === Agent Persona (for personas.ts) ===
+export interface AgentPersona {
+  id: string;
+  name: string;
+  role: AgentRole;
+  emoji: string;
+  color: string;
+  description: string;
+  skills: string[];
+  defaultRoom: string;
+  defaultSeat: number;
 }

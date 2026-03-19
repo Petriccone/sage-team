@@ -124,7 +124,17 @@ Screenshots are saved to `.sage-team/screenshots/` with timestamps and agent att
 
 The 2D office renders in your terminal with real-time agent positions and status indicators.
 
-### Office Floor Plan
+### Screenshots
+
+**Office Floor Plan** — Each agent at their desk with live status indicators:
+
+![Office Floor Plan](docs/office-floor-plan.png)
+
+**Sprint Planning Meeting** — 9 agents gathered in the meeting room:
+
+![Meeting Room - Sprint Planning](docs/meeting-room.png)
+
+### Office Floor Plan (ASCII)
 
 ```
 ╔══════════════════════════════════════════════════════╗

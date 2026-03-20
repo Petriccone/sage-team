@@ -48,6 +48,15 @@ export interface Sprint {
   completed_count: number;
 }
 
+export interface ActivityEntry {
+  id: string;
+  time: string;
+  agentId: string | null;
+  icon: string;
+  text: string;
+  type: 'info' | 'success' | 'warning' | 'agent' | 'task' | 'system';
+}
+
 export type WowEvent =
   | { type: 'meeting:start'; agents: string[] }
   | { type: 'meeting:end' }
@@ -68,6 +77,7 @@ export interface StoreState {
   sprint: Sprint | null;
   selectedPR: string | null;
   wowEvents: WowEvent[];
+  activity: ActivityEntry[];
 
   setConnected: (connected: boolean) => void;
   setAgents: (agents: Agent[]) => void;
@@ -82,7 +92,10 @@ export interface StoreState {
   updatePR: (id: string, updates: Partial<PullRequest>) => void;
   pushWow: (event: WowEvent) => void;
   popWow: () => WowEvent | undefined;
+  pushActivity: (entry: Omit<ActivityEntry, 'id' | 'time'>) => void;
 }
+
+let activityCounter = 0;
 
 export const useStore = create<StoreState>((set) => ({
   connected: false,
@@ -93,6 +106,7 @@ export const useStore = create<StoreState>((set) => ({
   sprint: null,
   selectedPR: null,
   wowEvents: [],
+  activity: [],
 
   setConnected: (connected) => set({ connected }),
   setAgents: (agents) => set({ agents }),
@@ -132,4 +146,16 @@ export const useStore = create<StoreState>((set) => ({
     useStore.setState({ wowEvents: events.slice(1) });
     return first;
   },
+
+  pushActivity: (entry) =>
+    set((s) => ({
+      activity: [
+        ...s.activity.slice(-299),
+        {
+          ...entry,
+          id: `act-${++activityCounter}`,
+          time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        },
+      ],
+    })),
 }));

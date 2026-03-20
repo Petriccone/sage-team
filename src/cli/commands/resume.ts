@@ -63,7 +63,7 @@ export function resumeCommand(): Command {
       // Start server
       const { createServer } = await import('../../server/index');
       const port = parseInt(options.port);
-      createServer(orchestrator, port);
+      await createServer(orchestrator, port);
 
       console.log(`Office running at http://localhost:${port}`);
 

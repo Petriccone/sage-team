@@ -58,11 +58,27 @@ export function initCommand(): Command {
         fs.writeFileSync(gitignorePath, gitignoreEntry);
       }
 
+      // Create .mcp.json for Claude Code integration
+      const mcpPath = '.mcp.json';
+      if (!fs.existsSync(mcpPath)) {
+        const mcpConfig = {
+          mcpServers: {
+            'sage-team': {
+              command: 'sage-team-mcp',
+              args: [],
+            },
+          },
+        };
+        fs.writeFileSync(mcpPath, JSON.stringify(mcpConfig, null, 2));
+        console.log('  Claude Code integration: .mcp.json created');
+      }
+
       console.log('Sage Team initialized successfully!');
       console.log(`  Config: ${sageDir}/config.json`);
       console.log(`  Mode: ${config.autonomyMode}`);
-      if (!config.apiKey) {
-        console.log('\n  Warning: No API key set. Run: sage-team config --api-key <key>');
+      if (config.apiKey || process.env.ANTHROPIC_API_KEY) {
+        console.log('  API Key: detected');
       }
+      console.log('\n  Ready! Open Claude Code and say: "Start sage team with goal: ..."');
     });
 }

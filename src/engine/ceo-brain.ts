@@ -30,8 +30,13 @@ export class CEOBrain {
 
   constructor(config: CEOBrainConfig) {
     this.config = config;
-    if (config.apiKey && config.apiKey !== 'test') {
+    if (config.apiKey === 'test') {
+      // Test mode: no client
+    } else if (config.apiKey) {
       this.client = new Anthropic({ apiKey: config.apiKey });
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      // SDK reads ANTHROPIC_API_KEY from environment automatically
+      this.client = new Anthropic();
     }
   }
 

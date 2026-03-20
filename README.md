@@ -1,6 +1,6 @@
-# Sage Team v3.0
+# Sage Team v3.4
 
-> AI-Powered Autonomous Software Company — 11 agents execute real code via Claude Code, with a PixiJS isometric office visualization.
+> AI-Powered Autonomous Software Company — 11 agents execute real code via Claude Code, with a PixiJS isometric office visualization and native Claude Code MCP integration.
 
 Sage Team runs a complete AI software company. A **CEO agent** decomposes your goal into a sprint, then **11 specialized agents** execute tasks in parallel using **Claude Code subprocesses** — writing real code, running tests, and creating PRs. Watch it all happen in a **PixiJS isometric office** in your browser.
 
@@ -14,6 +14,36 @@ Sage Team runs a complete AI software company. A **CEO agent** decomposes your g
 - **PR Workflow** — Agents create branches, you review and approve/reject PRs in the UI
 
 ## Quick Start
+
+### Option A: Inside Claude Code (recommended)
+
+```bash
+npm install -g sage-team
+cd your-project
+claude
+```
+
+Inside Claude, just talk naturally:
+
+> "Initialize sage team here"
+> "Start the team with the goal: Build a REST API for a todo app"
+> "How's the sprint going?"
+> "Approve the PR"
+
+Claude Code auto-discovers Sage Team via MCP. Set up the `.mcp.json` in your project:
+
+```json
+{
+  "mcpServers": {
+    "sage-team": {
+      "command": "sage-team-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+### Option B: Standalone CLI
 
 ```bash
 # Install globally
@@ -48,7 +78,22 @@ sage-team start --goal "Build a REST API for a todo app with authentication"
 | 🌀 **River** | Scrum Master | Lounge | Process, blocker removal |
 | 📊 **Atlas** | Data Engineer | Data Lab | Database, data pipelines |
 
-## Commands
+## MCP Tools (inside Claude Code)
+
+When using Sage Team inside Claude Code, these tools are available:
+
+| Tool | Description |
+|------|-------------|
+| `sage_team_init` | Initialize Sage Team in current project |
+| `sage_team_list` | Show all 11 agents with roles and skills |
+| `sage_team_start` | Start a session with a goal |
+| `sage_team_status` | Show sprint progress, tasks, and agent statuses |
+| `sage_team_doctor` | Check system health (Node, Git, Claude Code, API key) |
+| `sage_team_config` | View or update configuration |
+| `sage_team_approve_pr` | Approve and merge a pull request |
+| `sage_team_reject_pr` | Reject a PR with feedback for rework |
+
+## CLI Commands
 
 ```bash
 sage-team init                    # Initialize .sage-team/ directory
@@ -130,6 +175,8 @@ sage-team/
 │   ├── cli/
 │   │   ├── index.ts        # Commander program with 8 commands
 │   │   └── commands/       # init, start, resume, config, team, status, doctor, logs
+│   ├── mcp/
+│   │   └── server.ts       # MCP server for Claude Code integration
 │   ├── server/
 │   │   ├── index.ts        # Express + WebSocket server
 │   │   └── routes/api.ts   # REST API endpoints

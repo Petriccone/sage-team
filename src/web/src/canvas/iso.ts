@@ -18,3 +18,13 @@ export function toGrid(x: number, y: number): { col: number; row: number } {
     row: Math.round(y / TILE_H - x / TILE_W),
   };
 }
+
+/** Draw an isometric diamond shape */
+export function isoDiamond(x: number, y: number, w: number = TILE_W, h: number = TILE_H) {
+  return [
+    { x: x, y: y },
+    { x: x + w / 2, y: y + h / 2 },
+    { x: x, y: y + h },
+    { x: x - w / 2, y: y + h / 2 },
+  ];
+}

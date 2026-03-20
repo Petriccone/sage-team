@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command } from 'commander';
 import { initCommand } from './commands/init';
 import { startCommand } from './commands/start';
@@ -14,7 +15,7 @@ export function buildProgram(): Command {
   program
     .name('sage-team')
     .description('AI-powered autonomous software company')
-    .version('3.0.0');
+    .version('3.4.0');
 
   program.addCommand(initCommand());
   program.addCommand(startCommand());

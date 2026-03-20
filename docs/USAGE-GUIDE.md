@@ -45,9 +45,60 @@ cd src/web && npm install && cd ../..
 
 ---
 
-## Step 3: Set Up
+## Step 3: Choose Your Mode
 
-Go to the **project folder** where you want the agents to work (can be an existing repo or a new folder):
+Sage Team works in **two modes**. Pick the one you prefer:
+
+### Mode A: Inside Claude Code (recommended)
+
+This is the easiest way. You talk to Claude normally and Sage Team works as a native tool.
+
+**1. Set up MCP** — Create a `.mcp.json` file in your project root:
+
+```json
+{
+  "mcpServers": {
+    "sage-team": {
+      "command": "sage-team-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+**2. Open Claude Code:**
+```bash
+cd my-project
+claude
+```
+
+**3. Talk naturally:**
+- "Initialize sage team" → sets up `.sage-team/`
+- "Show me the team" → lists all 11 agents
+- "Build a REST API for a task manager" → CEO decomposes and agents start working
+- "What's the status?" → shows sprint progress
+- "Approve the PR" → merges the work
+
+That's it. Claude discovers the MCP server automatically and has all Sage Team tools available.
+
+**Available MCP tools:**
+
+| Tool | What it does |
+|------|-------------|
+| `sage_team_init` | Initialize project |
+| `sage_team_list` | Show all 11 agents |
+| `sage_team_start` | Start session with a goal |
+| `sage_team_status` | Sprint progress |
+| `sage_team_doctor` | System health check |
+| `sage_team_config` | View/update settings |
+| `sage_team_approve_pr` | Approve & merge PR |
+| `sage_team_reject_pr` | Reject PR with feedback |
+
+### Mode B: Standalone CLI
+
+Use Sage Team directly from your terminal with the browser UI.
+
+**1. Set up:**
 
 ```bash
 cd my-project
@@ -56,7 +107,7 @@ sage-team init
 
 This creates a `.sage-team/` folder with your configuration.
 
-Now add your API key:
+**2. Add your API key:**
 
 ```bash
 # Option A: environment variable (temporary, lasts for this terminal session)
@@ -66,12 +117,14 @@ export ANTHROPIC_API_KEY=sk-ant-your-key-here
 sage-team config --api-key sk-ant-your-key-here
 ```
 
-Check that everything is ready:
+**3. Check everything is ready:**
 ```bash
 sage-team doctor
 ```
 
 You should see all green checkmarks.
+
+> **Note:** If you already have `ANTHROPIC_API_KEY` set in your environment (which you do if you use Claude Code), Sage Team detects it automatically — no extra configuration needed.
 
 ---
 
@@ -101,16 +154,20 @@ This shows all 11 agents, their roles, and skills:
 
 ## Step 5: Give a Goal and Watch
 
+**In Claude Code:**
+> "Start the team with the goal: Build a REST API for a task manager with Express and SQLite"
+
+**In CLI:**
 ```bash
 sage-team start --goal "Build a REST API for a task manager with Express and SQLite"
 ```
 
 What happens next:
-1. Your browser opens automatically with the isometric office
+1. Your browser opens automatically with the isometric office (CLI mode)
 2. **Sage (CEO)** analyzes the goal and breaks it into smaller tasks (a sprint)
 3. Tasks are assigned to the right agents based on their skills
 4. Each agent spawns their own **Claude Code** subprocess and starts working
-5. You see everything happening in real time in the browser
+5. You see everything happening in real time (browser in CLI mode, or status updates in Claude Code)
 
 If you don't want the browser to open:
 ```bash
@@ -300,3 +357,9 @@ Open `http://localhost:3000` manually (or whatever port you chose).
 
 **Agents seem stuck**
 Check `sage-team logs` for errors. Try `sage-team status` to see task states. You can always `Ctrl+C` and `sage-team resume` to restart.
+
+**MCP server not detected in Claude Code**
+Make sure `.mcp.json` exists in your project root with the correct format. Restart Claude Code after adding it.
+
+**"sage-team-mcp: command not found"**
+Install sage-team globally: `npm install -g sage-team`. The `sage-team-mcp` binary is included.

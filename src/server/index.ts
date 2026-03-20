@@ -1,11 +1,34 @@
 import express from 'express';
 import http from 'http';
+import net from 'net';
 import path from 'path';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { Orchestrator } from '../engine/orchestrator';
 import { createApiRouter } from './routes/api';
 
-export function createServer(orchestrator: Orchestrator, port: number): http.Server {
+/** Check if a port is free by briefly opening a TCP server */
+function isPortFree(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const tester = net.createServer();
+    tester.once('error', () => resolve(false));
+    tester.listen(port, () => {
+      tester.close(() => resolve(true));
+    });
+  });
+}
+
+/** Find a free port starting from the given port */
+async function findFreePort(startPort: number, maxAttempts = 10): Promise<number> {
+  for (let i = 0; i < maxAttempts; i++) {
+    if (await isPortFree(startPort + i)) {
+      return startPort + i;
+    }
+  }
+  // Fallback: let OS pick
+  return 0;
+}
+
+export async function createServer(orchestrator: Orchestrator, port: number): Promise<http.Server> {
   const app = express();
   app.use(express.json());
 
@@ -68,6 +91,14 @@ export function createServer(orchestrator: Orchestrator, port: number): http.Ser
     });
   });
 
-  server.listen(port);
-  return server;
+  // Find a free port before binding
+  const freePort = await findFreePort(port);
+
+  return new Promise<http.Server>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(freePort, () => {
+      server.removeAllListeners('error');
+      resolve(server);
+    });
+  });
 }

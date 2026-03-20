@@ -23,12 +23,7 @@ describe('Server', () => {
       mission: 'Build great software',
     });
     orchestrator.start();
-    server = createServer(orchestrator, 0);
-    // Wait for server to be listening
-    await new Promise<void>(resolve => {
-      if (server.listening) return resolve();
-      server.on('listening', resolve);
-    });
+    server = await createServer(orchestrator, 0);
   });
 
   afterAll(() => {

@@ -18,12 +18,7 @@ export function startCommand(): Command {
       }
 
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-      if (!config.apiKey && !process.env.ANTHROPIC_API_KEY) {
-        console.error('No API key. Set ANTHROPIC_API_KEY or run: sage-team config --api-key <key>');
-        process.exit(1);
-      }
-
-      const apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY;
+      const apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY || '';
       const db = new Database('.sage-team/state.db');
       const orchestrator = new Orchestrator(db, {
         apiKey,
@@ -46,7 +41,7 @@ export function startCommand(): Command {
       // Start server (lazy import to avoid loading express when not needed)
       const { createServer } = await import('../../server/index');
       const port = parseInt(options.port);
-      const server = createServer(orchestrator, port);
+      const server = await createServer(orchestrator, port);
 
       // Open browser
       if (options.browser !== false) {

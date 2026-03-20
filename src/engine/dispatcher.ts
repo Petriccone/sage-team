@@ -103,6 +103,7 @@ export class Dispatcher extends EventEmitter {
       cwd: cmd.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: true,
+      env: { ...process.env },
     });
 
     const runningProc: RunningProcess = {

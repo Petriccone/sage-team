@@ -291,15 +291,19 @@ export class Orchestrator extends EventEmitter {
       let cwd = process.cwd();
       if (this.config.autonomyMode === 'sandbox') {
         try {
+          // Check if git is available in this directory
+          const { execSync } = require('child_process');
+          execSync('git rev-parse --git-dir', { cwd, stdio: 'pipe' });
+
           const taskSlug = task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
-          cwd = this.prManager.createWorktree(agentId, task.id, taskSlug, process.cwd());
+          cwd = this.prManager.createWorktree(agentId, task.id, taskSlug, cwd);
           // Make path absolute if relative
           if (!path.isAbsolute(cwd)) {
             cwd = path.join(process.cwd(), cwd);
           }
         } catch (err: any) {
-          // Worktree creation can fail (dirty repo, no git, etc.) — fall back to cwd
-          this.emitEvent('system', agentId, { message: `Worktree failed, using project dir: ${err.message}` });
+          // No git or worktree failed — silently fall back to direct mode
+          this.emitEvent('system', agentId, { message: `Using project dir (no git worktree)` });
         }
       }
 

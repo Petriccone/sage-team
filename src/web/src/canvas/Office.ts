@@ -42,9 +42,9 @@ export class Office {
   private centerCamera() {
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
-    const center = toScreen(8, 8);
+    const center = toScreen(9, 10);
     this.world.x = sw / 2 - center.x;
-    this.world.y = sh / 3.2 - center.y;
+    this.world.y = sh / 3.5 - center.y;
   }
 
   private drawRooms() {
@@ -56,8 +56,9 @@ export class Office {
   private drawRoom(room: RoomDef) {
     const container = new Container();
     container.sortableChildren = true;
-    const basePos = toScreen(room.col, room.row);
-    container.zIndex = basePos.y;
+    // Use bottom-right corner for depth sort (back-to-front in isometric)
+    const brPos = toScreen(room.col + room.w, room.row + room.h);
+    container.zIndex = brPos.y;
 
     const floorColor = parseInt(room.floorColor.slice(1), 16);
     const wallColor = parseInt(room.wallColor.slice(1), 16);

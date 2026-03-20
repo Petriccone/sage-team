@@ -1,22 +1,24 @@
 import { Command } from 'commander';
+import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-const DEFAULT_CONFIG = {
-  companyName: 'Sage Team',
-  mission: 'Build amazing software autonomously',
-  model: 'claude-sonnet-4-20250514',
-  maxConcurrentAgents: 3,
-  autonomyMode: 'sandbox',
-  apiKey: '',
-};
+/** Detect if current directory is inside a git repository */
+function hasGit(): boolean {
+  try {
+    execSync('git rev-parse --git-dir', { stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function initCommand(): Command {
   return new Command('init')
     .description('Initialize Sage Team in current directory')
     .option('--api-key <key>', 'Anthropic API key')
     .option('--company-name <name>', 'Company name')
-    .option('--autonomy <mode>', 'Autonomy mode: sandbox|direct|supervised', 'sandbox')
+    .option('--autonomy <mode>', 'Autonomy mode: sandbox|direct|supervised')
     .action(async (options) => {
       const sageDir = '.sage-team';
 
@@ -27,13 +29,23 @@ export function initCommand(): Command {
       }
 
       // Create directory structure
-      fs.mkdirSync(path.join(sageDir, 'worktrees'), { recursive: true });
+      fs.mkdirSync(sageDir, { recursive: true });
+
+      // Auto-detect: sandbox if git available, direct otherwise
+      const isGitRepo = hasGit();
+      const defaultMode = isGitRepo ? 'sandbox' : 'direct';
 
       // Build config
-      const config = { ...DEFAULT_CONFIG };
+      const config = {
+        companyName: 'Sage Team',
+        mission: 'Build amazing software autonomously',
+        model: 'claude-sonnet-4-20250514',
+        maxConcurrentAgents: 3,
+        autonomyMode: options.autonomy || defaultMode,
+        apiKey: '',
+      };
       if (options.apiKey) config.apiKey = options.apiKey;
       if (options.companyName) config.companyName = options.companyName;
-      if (options.autonomy) config.autonomyMode = options.autonomy;
 
       // Check env var
       if (!config.apiKey && process.env.ANTHROPIC_API_KEY) {
@@ -46,16 +58,18 @@ export function initCommand(): Command {
         JSON.stringify(config, null, 2)
       );
 
-      // Add to .gitignore
-      const gitignorePath = '.gitignore';
-      const gitignoreEntry = '\n# Sage Team\n.sage-team/\n';
-      if (fs.existsSync(gitignorePath)) {
-        const content = fs.readFileSync(gitignorePath, 'utf-8');
-        if (!content.includes('.sage-team')) {
-          fs.appendFileSync(gitignorePath, gitignoreEntry);
+      // Add to .gitignore only if git exists
+      if (isGitRepo) {
+        const gitignorePath = '.gitignore';
+        const gitignoreEntry = '\n# Sage Team\n.sage-team/\n';
+        if (fs.existsSync(gitignorePath)) {
+          const content = fs.readFileSync(gitignorePath, 'utf-8');
+          if (!content.includes('.sage-team')) {
+            fs.appendFileSync(gitignorePath, gitignoreEntry);
+          }
+        } else {
+          fs.writeFileSync(gitignorePath, gitignoreEntry);
         }
-      } else {
-        fs.writeFileSync(gitignorePath, gitignoreEntry);
       }
 
       // Create .mcp.json for Claude Code integration

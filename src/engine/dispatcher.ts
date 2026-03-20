@@ -92,8 +92,8 @@ export class Dispatcher extends EventEmitter {
     const args = [
       '--print',
       '--output-format', 'stream-json',
+      '--dangerously-skip-permissions',
       '--system-prompt', input.systemPrompt,
-      '--permission-mode', 'bypassPermissions',
       '--max-turns', String(input.maxTurns),
       input.taskPrompt, // positional argument (last)
     ];

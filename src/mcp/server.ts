@@ -21,20 +21,34 @@ function loadConfig(): any {
 }
 
 /** Auto-initialize .sage-team/ if it doesn't exist */
+/** Detect if current directory is inside a git repository */
+function hasGit(): boolean {
+  try {
+    const { execSync } = require('child_process');
+    execSync('git rev-parse --git-dir', { cwd: process.cwd(), stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function autoInit(): void {
   const sageDir = path.join(process.cwd(), '.sage-team');
   const configPath = path.join(sageDir, 'config.json');
 
   if (fs.existsSync(configPath)) return;
 
-  fs.mkdirSync(path.join(sageDir, 'worktrees'), { recursive: true });
+  fs.mkdirSync(sageDir, { recursive: true });
+
+  // Auto-detect: use sandbox (git worktrees) if git available, otherwise direct
+  const isGitRepo = hasGit();
 
   const config = {
     companyName: 'Sage Team',
     mission: 'Build amazing software autonomously',
     model: 'claude-sonnet-4-20250514',
     maxConcurrentAgents: 3,
-    autonomyMode: 'sandbox',
+    autonomyMode: isGitRepo ? 'sandbox' : 'direct',
     apiKey: '',
   };
 
@@ -45,13 +59,15 @@ function autoInit(): void {
 
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
-  // Add to .gitignore
-  const gitignorePath = path.join(process.cwd(), '.gitignore');
-  const entry = '\n# Sage Team\n.sage-team/\n';
-  if (fs.existsSync(gitignorePath)) {
-    const content = fs.readFileSync(gitignorePath, 'utf-8');
-    if (!content.includes('.sage-team')) {
-      fs.appendFileSync(gitignorePath, entry);
+  // Add to .gitignore only if git exists
+  if (isGitRepo) {
+    const gitignorePath = path.join(process.cwd(), '.gitignore');
+    const entry = '\n# Sage Team\n.sage-team/\n';
+    if (fs.existsSync(gitignorePath)) {
+      const content = fs.readFileSync(gitignorePath, 'utf-8');
+      if (!content.includes('.sage-team')) {
+        fs.appendFileSync(gitignorePath, entry);
+      }
     }
   }
 }
@@ -86,7 +102,7 @@ function ensureOrchestrator(): Orchestrator {
 // ── MCP Server ───────────────────────────────────────────────────────
 const server = new McpServer({
   name: 'sage-team',
-  version: '3.4.2',
+  version: '3.4.3',
 });
 
 // ── Tool: init ───────────────────────────────────────────────────────

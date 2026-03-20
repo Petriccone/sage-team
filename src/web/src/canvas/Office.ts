@@ -42,9 +42,9 @@ export class Office {
   private centerCamera() {
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
-    const center = toScreen(9, 10);
+    const center = toScreen(7, 8);
     this.world.x = sw / 2 - center.x;
-    this.world.y = sh / 3.5 - center.y;
+    this.world.y = sh / 2.5 - center.y;
   }
 
   private drawRooms() {

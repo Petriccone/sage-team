@@ -102,7 +102,7 @@ function ensureOrchestrator(): Orchestrator {
 // ── MCP Server ───────────────────────────────────────────────────────
 const server = new McpServer({
   name: 'sage-team',
-  version: '3.4.4',
+  version: '3.4.5',
 });
 
 // ── Tool: init ───────────────────────────────────────────────────────

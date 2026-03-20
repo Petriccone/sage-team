@@ -102,7 +102,7 @@ function ensureOrchestrator(): Orchestrator {
 // ── MCP Server ───────────────────────────────────────────────────────
 const server = new McpServer({
   name: 'sage-team',
-  version: '3.4.3',
+  version: '3.4.4',
 });
 
 // ── Tool: init ───────────────────────────────────────────────────────
@@ -172,16 +172,10 @@ server.tool(
         } catch {}
       }
 
-      // Check API key
-      const hasKey = !!(process.env.ANTHROPIC_API_KEY || loadConfig()?.apiKey);
-      if (!hasKey) {
-        return { content: [{ type: 'text' as const, text: '❌ ANTHROPIC_API_KEY not configured. Add it to .sage-team/config.json or set the environment variable.' }] };
-      }
-
-      // Chat with CEO
+      // Chat with CEO (uses Claude Code if no API key — plug and play)
       const response = await Promise.race([
         orch.chatWithCEO(message),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 60000)),
       ]) as any;
 
       if (response.type === 'ready') {
@@ -285,36 +279,29 @@ server.tool(
         lines.push(`🏢 Office already running at http://localhost:${officePort}`);
       }
 
-      // Check if API key is available
-      const hasKey = !!(process.env.ANTHROPIC_API_KEY || loadConfig()?.apiKey);
-      if (!hasKey) {
-        lines.push('');
-        lines.push('❌ ANTHROPIC_API_KEY not found. Add it to .sage-team/config.json:');
-        lines.push('  { "apiKey": "sk-ant-..." }');
-      } else {
-        lines.push('');
-        lines.push('🤝 *Team meeting in progress...*');
+      // No API key check needed — CEO Brain uses Claude Code if no key available
+      lines.push('');
+      lines.push('🤝 *Team meeting in progress...*');
 
-        try {
-          await Promise.race([
-            orch.submitGoal(goal),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000)),
-          ]);
-          const tasks = orch.getTasks();
-          lines.push('');
-          lines.push(`✅ Sprint planned — ${tasks.length} tasks assigned:\n`);
-          for (const t of tasks) {
-            const persona = PERSONAS.find(p => p.id === t.assignee_id);
-            lines.push(`  ${persona?.emoji || '•'} **${persona?.name || t.assignee_id}** → ${t.title}`);
-          }
-          lines.push('');
-          lines.push('The team is on it. Use sage_team_status to check progress.');
-        } catch (err: any) {
-          if (err.message === 'TIMEOUT') {
-            lines.push('\nStill planning... Use sage_team_status to check progress.');
-          } else {
-            lines.push(`\n❌ Goal decomposition failed: ${err.message}`);
-          }
+      try {
+        await Promise.race([
+          orch.submitGoal(goal),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 60000)),
+        ]);
+        const tasks = orch.getTasks();
+        lines.push('');
+        lines.push(`✅ Sprint planned — ${tasks.length} tasks assigned:\n`);
+        for (const t of tasks) {
+          const persona = PERSONAS.find(p => p.id === t.assignee_id);
+          lines.push(`  ${persona?.emoji || '•'} **${persona?.name || t.assignee_id}** → ${t.title}`);
+        }
+        lines.push('');
+        lines.push('The team is on it. Use sage_team_status to check progress.');
+      } catch (err: any) {
+        if (err.message === 'TIMEOUT') {
+          lines.push('\nStill planning... Use sage_team_status to check progress.');
+        } else {
+          lines.push(`\n❌ Goal decomposition failed: ${err.message}`);
         }
       }
 

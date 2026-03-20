@@ -158,10 +158,14 @@ export class Dispatcher extends EventEmitter {
 
     const cmd = this.buildCommand({ systemPrompt, taskPrompt, cwd, maxTurns });
 
+    // Remove CLAUDECODE env var to allow spawning claude from MCP context
+    const env = { ...process.env };
+    delete (env as any).CLAUDECODE;
+
     const proc = spawn(cmd.command, cmd.args, {
       cwd: cmd.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env },
+      env,
     });
 
     const runningProc: RunningProcess = {

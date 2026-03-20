@@ -1,3 +1,5 @@
+import { execSync } from 'child_process';
+import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 
 export interface CEOBrainConfig {
@@ -67,45 +69,132 @@ When you're ready to start (you have enough context):
 
 IMPORTANT: Only set type="ready" when you genuinely have enough context. If the user's goal is very simple and clear (like "create a hello world page"), you can skip questions and go straight to ready.`;
 
+/** Find the claude executable — works on Windows and Unix */
+function findClaudeExe(): string {
+  if (process.platform === 'win32') {
+    const fs = require('fs');
+    const exePaths = [
+      path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe'),
+      path.join(process.env.LOCALAPPDATA || '', 'Programs', 'claude', 'claude.exe'),
+    ];
+    for (const p of exePaths) {
+      if (fs.existsSync(p)) return p;
+    }
+    try {
+      const lines = execSync('where claude.exe', { encoding: 'utf-8' }).trim().split('\n');
+      const exeLine = lines.find((l: string) => l.trim().endsWith('.exe'));
+      if (exeLine) return exeLine.trim();
+    } catch { /* continue */ }
+  }
+  return 'claude';
+}
+
+/** Run claude --print and return the text output */
+function runClaude(systemPrompt: string, userPrompt: string): string {
+  const claude = findClaudeExe();
+  const env = { ...process.env };
+  // Allow spawning claude from within MCP context
+  delete (env as any).CLAUDECODE;
+
+  const { spawnSync } = require('child_process');
+  const result = spawnSync(claude, [
+    '--print',
+    '--dangerously-skip-permissions',
+    '--output-format', 'text',
+    '--max-turns', '1',
+    '--system-prompt', systemPrompt,
+    userPrompt,
+  ], {
+    encoding: 'utf-8',
+    timeout: 60000,
+    env,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+
+  if (result.error) {
+    throw new Error(`Failed to run claude: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`Claude exited with code ${result.status}: ${(result.stderr || '').slice(0, 200)}`);
+  }
+
+  return (result.stdout || '').trim();
+}
+
 export class CEOBrain {
   private config: CEOBrainConfig;
   private client: Anthropic | null = null;
+  private useClaudeCode = false;
   private conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
 
   constructor(config: CEOBrainConfig) {
     this.config = config;
     if (config.apiKey === 'test') {
-      // Test mode: no client
+      // Test mode: no client, no claude code
     } else if (config.apiKey) {
-      this.client = new Anthropic({ apiKey: config.apiKey });
+      try {
+        this.client = new Anthropic({ apiKey: config.apiKey });
+      } catch {
+        this.useClaudeCode = true;
+      }
     } else if (process.env.ANTHROPIC_API_KEY) {
-      this.client = new Anthropic();
+      try {
+        this.client = new Anthropic();
+      } catch {
+        this.useClaudeCode = true;
+      }
+    } else {
+      // No API key — use Claude Code directly (plug-and-play)
+      this.useClaudeCode = true;
     }
   }
 
   /** Start a conversation about a new goal */
   async chat(userMessage: string): Promise<CEOResponse> {
-    if (!this.client) {
-      throw new Error('CEO Brain not initialized: no API key');
-    }
-
     this.conversationHistory.push({ role: 'user', content: userMessage });
 
-    const response = await this.client.messages.create({
+    let text: string;
+
+    if (this.client) {
+      text = await this.chatViaSDK();
+    } else {
+      text = this.chatViaClaudeCode();
+    }
+
+    this.conversationHistory.push({ role: 'assistant', content: text });
+    return this.parseCEOResponse(text);
+  }
+
+  private async chatViaSDK(): Promise<string> {
+    const response = await this.client!.messages.create({
       model: this.config.model,
       max_tokens: 1024,
       system: CEO_SYSTEM_PROMPT,
       messages: this.conversationHistory,
     });
 
-    const text = response.content
+    return response.content
       .filter(block => block.type === 'text')
       .map(block => (block as { type: 'text'; text: string }).text)
       .join('');
+  }
 
-    this.conversationHistory.push({ role: 'assistant', content: text });
+  private chatViaClaudeCode(): string {
+    // Build conversation context into the prompt
+    const contextParts = this.conversationHistory.slice(0, -1).map(m =>
+      `${m.role === 'user' ? 'User' : 'Sage'}: ${m.content}`
+    );
+    const currentMessage = this.conversationHistory[this.conversationHistory.length - 1].content;
 
-    // Parse the JSON response
+    let prompt = currentMessage;
+    if (contextParts.length > 0) {
+      prompt = `Previous conversation:\n${contextParts.join('\n')}\n\nUser: ${currentMessage}\n\nRespond as Sage (JSON only):`;
+    }
+
+    return runClaude(CEO_SYSTEM_PROMPT, prompt);
+  }
+
+  private parseCEOResponse(text: string): CEOResponse {
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
@@ -116,7 +205,6 @@ export class CEOBrain {
         summary: parsed.summary,
       };
     } catch {
-      // If JSON parsing fails, treat as a question
       return { type: 'question', message: text };
     }
   }
@@ -182,7 +270,18 @@ Respond with ONLY valid JSON (no markdown, no explanation):
     const jsonMatch = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
     const jsonStr = jsonMatch ? jsonMatch[1].trim() : response.trim();
 
-    const parsed = JSON.parse(jsonStr);
+    // Also try raw JSON match if no code block found
+    let parsed: any;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      const rawMatch = response.match(/\{[\s\S]*\}/);
+      if (rawMatch) {
+        parsed = JSON.parse(rawMatch[0]);
+      } else {
+        throw new Error('No valid JSON found in decomposition response');
+      }
+    }
 
     if (!parsed.sprint || !parsed.tasks || !Array.isArray(parsed.tasks)) {
       throw new Error('Invalid decomposition: missing sprint or tasks');
@@ -205,10 +304,6 @@ Respond with ONLY valid JSON (no markdown, no explanation):
   }
 
   async decompose(goal: string, roster: AgentRoster[]): Promise<DecompositionResult> {
-    if (!this.client) {
-      throw new Error('CEO Brain not initialized: no API key');
-    }
-
     // Include conversation context if available
     const context = this.conversationHistory.length > 0
       ? this.getConversationContext()
@@ -216,16 +311,23 @@ Respond with ONLY valid JSON (no markdown, no explanation):
 
     const prompt = this.buildDecompositionPrompt(goal, roster, context);
 
-    const response = await this.client.messages.create({
-      model: this.config.model,
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    let text: string;
 
-    const text = response.content
-      .filter(block => block.type === 'text')
-      .map(block => (block as { type: 'text'; text: string }).text)
-      .join('');
+    if (this.client) {
+      const response = await this.client.messages.create({
+        model: this.config.model,
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      text = response.content
+        .filter(block => block.type === 'text')
+        .map(block => (block as { type: 'text'; text: string }).text)
+        .join('');
+    } else {
+      // Use Claude Code — no API key needed
+      text = runClaude('You are a technical project manager. Respond with ONLY valid JSON.', prompt);
+    }
 
     return this.parseDecomposition(text);
   }

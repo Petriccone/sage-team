@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -89,36 +89,51 @@ function findClaudeExe(): string {
   return 'claude';
 }
 
-/** Run claude --print and return the text output */
-function runClaude(systemPrompt: string, userPrompt: string): string {
-  const claude = findClaudeExe();
-  const env = { ...process.env };
-  // Allow spawning claude from within MCP context
-  delete (env as any).CLAUDECODE;
+/** Run claude --print asynchronously and return the text output */
+function runClaude(systemPrompt: string, userPrompt: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const claude = findClaudeExe();
+    const env = { ...process.env };
+    // Allow spawning claude from within MCP context
+    delete (env as any).CLAUDECODE;
 
-  const { spawnSync } = require('child_process');
-  const result = spawnSync(claude, [
-    '--print',
-    '--dangerously-skip-permissions',
-    '--output-format', 'text',
-    '--max-turns', '1',
-    '--system-prompt', systemPrompt,
-    userPrompt,
-  ], {
-    encoding: 'utf-8',
-    timeout: 60000,
-    env,
-    stdio: ['pipe', 'pipe', 'pipe'],
+    const proc = spawn(claude, [
+      '--print',
+      '--dangerously-skip-permissions',
+      '--output-format', 'text',
+      '--max-turns', '1',
+      '--system-prompt', systemPrompt,
+      userPrompt,
+    ], {
+      env,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+    const timer = setTimeout(() => {
+      proc.kill('SIGTERM');
+      reject(new Error('Claude timed out after 120s'));
+    }, 120000);
+
+    proc.on('error', (err) => {
+      clearTimeout(timer);
+      reject(new Error(`Failed to run claude: ${err.message}`));
+    });
+
+    proc.on('exit', (code) => {
+      clearTimeout(timer);
+      if (code !== 0) {
+        reject(new Error(`Claude exited with code ${code}: ${stderr.slice(0, 200)}`));
+      } else {
+        resolve(stdout.trim());
+      }
+    });
   });
-
-  if (result.error) {
-    throw new Error(`Failed to run claude: ${result.error.message}`);
-  }
-  if (result.status !== 0) {
-    throw new Error(`Claude exited with code ${result.status}: ${(result.stderr || '').slice(0, 200)}`);
-  }
-
-  return (result.stdout || '').trim();
 }
 
 export class CEOBrain {
@@ -158,7 +173,7 @@ export class CEOBrain {
     if (this.client) {
       text = await this.chatViaSDK();
     } else {
-      text = this.chatViaClaudeCode();
+      text = await this.chatViaClaudeCode();
     }
 
     this.conversationHistory.push({ role: 'assistant', content: text });
@@ -179,7 +194,7 @@ export class CEOBrain {
       .join('');
   }
 
-  private chatViaClaudeCode(): string {
+  private async chatViaClaudeCode(): Promise<string> {
     // Build conversation context into the prompt
     const contextParts = this.conversationHistory.slice(0, -1).map(m =>
       `${m.role === 'user' ? 'User' : 'Sage'}: ${m.content}`
@@ -326,7 +341,7 @@ Respond with ONLY valid JSON (no markdown, no explanation):
         .join('');
     } else {
       // Use Claude Code — no API key needed
-      text = runClaude('You are a technical project manager. Respond with ONLY valid JSON.', prompt);
+      text = await runClaude('You are a technical project manager. Respond with ONLY valid JSON.', prompt);
     }
 
     return this.parseDecomposition(text);

@@ -102,7 +102,7 @@ function ensureOrchestrator(): Orchestrator {
 // ── MCP Server ───────────────────────────────────────────────────────
 const server = new McpServer({
   name: 'sage-team',
-  version: '3.4.5',
+  version: '3.4.6',
 });
 
 // ── Tool: init ───────────────────────────────────────────────────────
@@ -175,7 +175,7 @@ server.tool(
       // Chat with CEO (uses Claude Code if no API key — plug and play)
       const response = await Promise.race([
         orch.chatWithCEO(message),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 60000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 180000)),
       ]) as any;
 
       if (response.type === 'ready') {
@@ -286,7 +286,7 @@ server.tool(
       try {
         await Promise.race([
           orch.submitGoal(goal),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 60000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 180000)),
         ]);
         const tasks = orch.getTasks();
         lines.push('');

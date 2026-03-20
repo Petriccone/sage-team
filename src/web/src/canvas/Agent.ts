@@ -2,28 +2,32 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { toScreen } from './iso';
 import { getSeatPosition } from './rooms';
 
+// Pixel art agent colors (shirt/outfit)
 const AGENT_COLORS: Record<string, number> = {
   sage: 0xffd700, nova: 0x00bfff, aria: 0xb57edc, dex: 0x50c878,
   flux: 0x4169e1, quinn: 0xff8c00, gage: 0x20b2aa, morgan: 0xff69b4,
   uma: 0x8a2be2, river: 0x00ced1, atlas: 0x708090,
 };
 
+// Pixel art skin tones
 const SKIN_TONES: Record<string, number> = {
-  sage: 0xf0d0a0, nova: 0xd4a574, aria: 0xf5d6c3, dex: 0xc68642,
-  flux: 0xf0d0a0, quinn: 0xe0c0a0, gage: 0xc68642, morgan: 0xf5d6c3,
-  uma: 0xd4a574, river: 0xf0d0a0, atlas: 0xe0c0a0,
+  sage: 0xf5d6b8, nova: 0xc69c6d, aria: 0xf5d6c3, dex: 0x8d5524,
+  flux: 0xf5d6b8, quinn: 0xe8c49e, gage: 0x8d5524, morgan: 0xf5d6c3,
+  uma: 0xc69c6d, river: 0xf5d6b8, atlas: 0xe8c49e,
 };
 
+// Pixel art hair colors
 const HAIR_COLORS: Record<string, number> = {
-  sage: 0x2a2a2a, nova: 0x1a1a3a, aria: 0x8a4a2a, dex: 0x1a1a1a,
-  flux: 0x3a3a1a, quinn: 0x4a2a1a, gage: 0x1a1a1a, morgan: 0x6a2a1a,
-  uma: 0x2a1a3a, river: 0x3a3a3a, atlas: 0x5a5a5a,
+  sage: 0x2a2a2a, nova: 0x1a1a3a, aria: 0x8a4a2a, dex: 0x0a0a0a,
+  flux: 0x4a3a1a, quinn: 0x4a2a1a, gage: 0x0a0a0a, morgan: 0x8a2a1a,
+  uma: 0x2a1a3a, river: 0x5a5a5a, atlas: 0x6a6a6a,
 };
 
-const AGENT_EMOJI: Record<string, string> = {
-  sage: '\u{1F451}', nova: '\u{1F52C}', aria: '\u{1F3DB}\uFE0F', dex: '\u26A1',
-  flux: '\u{1F30A}', quinn: '\u{1F50D}', gage: '\u{1F680}', morgan: '\u{1F4CB}',
-  uma: '\u{1F3A8}', river: '\u{1F300}', atlas: '\u{1F4CA}',
+// Hair styles: 0=short, 1=medium, 2=long, 3=mohawk, 4=bun
+const HAIR_STYLE: Record<string, number> = {
+  sage: 0, nova: 0, aria: 2, dex: 3,
+  flux: 0, quinn: 1, gage: 0, morgan: 2,
+  uma: 4, river: 1, atlas: 0,
 };
 
 const STATUS_GLOW: Record<string, number> = {
@@ -44,14 +48,14 @@ export interface AgentData {
   position_seat: number;
 }
 
+/** Pixel art style agent — blocky 8/16-bit inspired character */
 export class AgentSprite {
   container: Container;
   private body: Graphics;
   private glow: Graphics;
-  private statusRing: Graphics;
-  private statusLabel: Text;
+  private statusBubble: Graphics;
   private label: Text;
-  private emojiLabel: Text;
+  private statusLabel: Text;
   private shadow: Graphics;
   private bobOffset = Math.random() * Math.PI * 2;
   private targetX = 0;
@@ -66,82 +70,67 @@ export class AgentSprite {
 
     const color = AGENT_COLORS[data.id] || 0xcccccc;
 
-    // ── Ground shadow ──
+    // Ground shadow (pixel-snapped ellipse)
     this.shadow = new Graphics();
-    this.shadow.ellipse(0, 8, 10, 4);
-    this.shadow.fill({ color: 0x000000, alpha: 0.35 });
     this.shadow.zIndex = 0;
     this.container.addChild(this.shadow);
 
-    // ── Status glow (ambient light behind body) ──
+    // Status glow ring
     this.glow = new Graphics();
     this.glow.zIndex = 1;
     this.glow.visible = false;
     this.container.addChild(this.glow);
 
-    // ── Agent body ──
+    // Pixel art body
     this.body = new Graphics();
-    this.drawPerson(this.body, data.id);
+    this.drawPixelPerson(this.body, data.id);
     this.body.zIndex = 2;
     this.container.addChild(this.body);
 
-    // ── Status ring ──
-    this.statusRing = new Graphics();
-    this.statusRing.zIndex = 3;
-    this.statusRing.visible = false;
-    this.container.addChild(this.statusRing);
+    // Status thought bubble
+    this.statusBubble = new Graphics();
+    this.statusBubble.zIndex = 4;
+    this.statusBubble.visible = false;
+    this.container.addChild(this.statusBubble);
 
-    // ── Emoji above head ──
-    this.emojiLabel = new Text({
-      text: AGENT_EMOJI[data.id] || '\u25CF',
-      style: new TextStyle({
-        fontSize: 14,
-        fontFamily: 'Apple Color Emoji, Segoe UI Emoji, sans-serif',
-      }),
-    });
-    this.emojiLabel.anchor.set(0.5, 0.5);
-    this.emojiLabel.y = -30;
-    this.emojiLabel.zIndex = 4;
-    this.container.addChild(this.emojiLabel);
-
-    // ── Name label ──
+    // Name label (pixel font style)
     this.label = new Text({
       text: data.name,
       style: new TextStyle({
         fontSize: 8,
         fill: color,
-        fontFamily: "'Segoe UI', Arial, sans-serif",
+        fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
         letterSpacing: 0.5,
         dropShadow: {
           color: '#000000',
-          blur: 4,
-          distance: 0,
+          blur: 2,
+          distance: 1,
         },
       }),
     });
     this.label.anchor.set(0.5, 0);
-    this.label.y = 13;
+    this.label.y = 14;
     this.label.zIndex = 5;
     this.container.addChild(this.label);
 
-    // ── Status text ──
+    // Status text
     this.statusLabel = new Text({
       text: '',
       style: new TextStyle({
         fontSize: 7,
         fill: 0x888888,
-        fontFamily: "'Segoe UI', Arial, sans-serif",
+        fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '400',
         dropShadow: {
           color: '#000000',
-          blur: 3,
-          distance: 0,
+          blur: 2,
+          distance: 1,
         },
       }),
     });
     this.statusLabel.anchor.set(0.5, 0);
-    this.statusLabel.y = 22;
+    this.statusLabel.y = 23;
     this.statusLabel.zIndex = 5;
     this.statusLabel.visible = false;
     this.container.addChild(this.statusLabel);
@@ -154,103 +143,120 @@ export class AgentSprite {
     this.container.y = this.currentY;
   }
 
-  private drawPerson(g: Graphics, agentId: string) {
+  /** Draw a pixel art person — blocky 16-bit style character */
+  private drawPixelPerson(g: Graphics, agentId: string) {
     const color = AGENT_COLORS[agentId] || 0xcccccc;
-    const skin = SKIN_TONES[agentId] || 0xf0d0a0;
+    const skin = SKIN_TONES[agentId] || 0xf5d6b8;
     const hair = HAIR_COLORS[agentId] || 0x2a2a2a;
+    const hairStyle = HAIR_STYLE[agentId] || 0;
+    const px = 2; // pixel size
 
-    // ── Hair ──
-    g.circle(0, -15, 5.5);
-    g.fill({ color: hair, alpha: 0.9 });
+    // Hair (varies by style)
+    switch (hairStyle) {
+      case 0: // Short
+        g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
+        g.fill({ color: hair });
+        break;
+      case 1: // Medium
+        g.rect(-3 * px, -12 * px, 6 * px, 4 * px);
+        g.fill({ color: hair });
+        g.rect(-4 * px, -11 * px, 1 * px, 4 * px);
+        g.fill({ color: hair });
+        g.rect(3 * px, -11 * px, 1 * px, 4 * px);
+        g.fill({ color: hair });
+        break;
+      case 2: // Long
+        g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
+        g.fill({ color: hair });
+        g.rect(-4 * px, -11 * px, 1 * px, 7 * px);
+        g.fill({ color: hair });
+        g.rect(3 * px, -11 * px, 1 * px, 7 * px);
+        g.fill({ color: hair });
+        break;
+      case 3: // Mohawk
+        g.rect(-1 * px, -14 * px, 2 * px, 2 * px);
+        g.fill({ color: hair });
+        g.rect(-2 * px, -12 * px, 4 * px, 2 * px);
+        g.fill({ color: hair });
+        break;
+      case 4: // Bun
+        g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
+        g.fill({ color: hair });
+        g.rect(-1 * px, -14 * px, 2 * px, 2 * px);
+        g.fill({ color: hair });
+        break;
+    }
 
-    // ── Head ──
-    g.circle(0, -14, 5);
+    // Head (3x3 pixel block)
+    g.rect(-3 * px, -10 * px, 6 * px, 5 * px);
     g.fill({ color: skin });
-    g.stroke({ color: darken(skin, 0.2), width: 0.5, alpha: 0.4 });
 
-    // ── Eyes (tiny dots) ──
-    g.circle(-1.5, -14.5, 0.6);
-    g.fill({ color: 0x222222, alpha: 0.8 });
-    g.circle(1.5, -14.5, 0.6);
-    g.fill({ color: 0x222222, alpha: 0.8 });
+    // Eyes (1px each)
+    g.rect(-2 * px, -8 * px, 1 * px, 1 * px);
+    g.fill({ color: 0x111111 });
+    g.rect(1 * px, -8 * px, 1 * px, 1 * px);
+    g.fill({ color: 0x111111 });
 
-    // ── Neck ──
-    g.rect(-1.5, -9.5, 3, 2);
-    g.fill({ color: skin, alpha: 0.9 });
+    // Mouth (1px)
+    g.rect(-1 * px, -6 * px, 2 * px, 1 * px);
+    g.fill({ color: darken(skin, 0.2) });
 
-    // ── Torso (shirt) ──
-    g.poly([
-      { x: -7, y: -8 },
-      { x: 7, y: -8 },
-      { x: 6, y: 3 },
-      { x: -6, y: 3 },
-    ]);
+    // Torso/Shirt (blocky)
+    g.rect(-4 * px, -5 * px, 8 * px, 6 * px);
     g.fill({ color });
 
-    // Shirt collar/detail
-    g.poly([
-      { x: -3, y: -8 },
-      { x: 0, y: -6 },
-      { x: 3, y: -8 },
-    ]);
-    g.fill({ color: darken(color, 0.15), alpha: 0.5 });
+    // Shirt collar
+    g.rect(-2 * px, -5 * px, 4 * px, 1 * px);
+    g.fill({ color: darken(color, 0.15) });
 
-    // Shirt shading (left side darker)
-    g.poly([
-      { x: -7, y: -8 },
-      { x: -1, y: -8 },
-      { x: -1, y: 3 },
-      { x: -6, y: 3 },
-    ]);
-    g.fill({ color: 0x000000, alpha: 0.1 });
-
-    // ── Arms ──
     // Left arm
-    g.poly([
-      { x: -7, y: -7 },
-      { x: -9, y: -5 },
-      { x: -8, y: 0 },
-      { x: -6, y: 0 },
-    ]);
+    g.rect(-5 * px, -4 * px, 1 * px, 5 * px);
     g.fill({ color: darken(color, 0.1) });
     // Left hand
-    g.circle(-7, 0.5, 1.5);
-    g.fill({ color: skin, alpha: 0.9 });
+    g.rect(-5 * px, 1 * px, 1 * px, 1 * px);
+    g.fill({ color: skin });
 
     // Right arm
-    g.poly([
-      { x: 7, y: -7 },
-      { x: 9, y: -5 },
-      { x: 8, y: 0 },
-      { x: 6, y: 0 },
-    ]);
+    g.rect(4 * px, -4 * px, 1 * px, 5 * px);
     g.fill({ color: darken(color, 0.1) });
     // Right hand
-    g.circle(7, 0.5, 1.5);
-    g.fill({ color: skin, alpha: 0.9 });
+    g.rect(4 * px, 1 * px, 1 * px, 1 * px);
+    g.fill({ color: skin });
 
-    // ── Legs ──
-    g.poly([
-      { x: -5, y: 3 },
-      { x: -1, y: 3 },
-      { x: -1.5, y: 10 },
-      { x: -5, y: 10 },
-    ]);
-    g.fill({ color: 0x222233, alpha: 0.9 });
+    // Pants/legs
+    g.rect(-3 * px, 1 * px, 3 * px, 4 * px);
+    g.fill({ color: 0x222233 });
+    g.rect(0, 1 * px, 3 * px, 4 * px);
+    g.fill({ color: 0x2a2a3a });
 
-    g.poly([
-      { x: 1, y: 3 },
-      { x: 5, y: 3 },
-      { x: 5, y: 10 },
-      { x: 1.5, y: 10 },
-    ]);
-    g.fill({ color: 0x2a2a3a, alpha: 0.9 });
+    // Shoes
+    g.rect(-4 * px, 5 * px, 3 * px, 1 * px);
+    g.fill({ color: 0x1a1a1a });
+    g.rect(1 * px, 5 * px, 3 * px, 1 * px);
+    g.fill({ color: 0x1a1a1a });
+  }
 
-    // ── Shoes ──
-    g.ellipse(-3, 10.5, 2.5, 1.2);
-    g.fill({ color: 0x1a1a1a, alpha: 0.8 });
-    g.ellipse(3, 10.5, 2.5, 1.2);
-    g.fill({ color: 0x1a1a1a, alpha: 0.8 });
+  private drawStatusBubble(g: Graphics, status: string, color: number) {
+    g.clear();
+
+    // Status icons as pixel art in thought bubble
+    const icons: Record<string, string> = {
+      coding: '</>', reviewing: 'eye', testing: 'bug',
+      planning: '...', blocked: '!', deploying: '^',
+      thinking: '?',
+    };
+    const icon = icons[status] || '?';
+
+    // Bubble background
+    g.roundRect(-12, -32, 24, 14, 3);
+    g.fill({ color: 0x1a1a2a, alpha: 0.9 });
+    g.stroke({ color, width: 1, alpha: 0.6 });
+
+    // Bubble tail dots
+    g.circle(0, -19, 2);
+    g.fill({ color: 0x1a1a2a, alpha: 0.8 });
+    g.circle(2, -16, 1);
+    g.fill({ color: 0x1a1a2a, alpha: 0.6 });
   }
 
   private setPositionFromRoom(room: string, seat: number) {
@@ -279,44 +285,40 @@ export class AgentSprite {
       this.currentY = this.targetY;
     }
 
-    this.bobOffset += 0.03;
+    this.bobOffset += 0.04;
     const isActive = data.status !== 'idle';
-    const bob = !isActive ? Math.sin(this.bobOffset) * 1.0 : 0;
-    const workBounce = isActive ? Math.sin(this.bobOffset * 3) * 0.6 : 0;
+
+    // Pixel-snapped bounce (whole pixel steps for retro feel)
+    const bob = isActive ? Math.round(Math.sin(this.bobOffset * 3) * 1.5) : 0;
 
     this.container.x = this.currentX;
-    this.container.y = this.currentY + bob + workBounce;
+    this.container.y = this.currentY + bob;
     this.container.zIndex = this.currentY + 100;
 
-    // Shadow scale when active
+    // Shadow
     this.shadow.clear();
-    const shadowScale = isActive ? 0.85 : 1;
-    this.shadow.ellipse(0, 8, 10 * shadowScale, 4 * shadowScale);
-    this.shadow.fill({ color: 0x000000, alpha: isActive ? 0.25 : 0.35 });
+    const shadowAlpha = isActive ? 0.2 : 0.3;
+    this.shadow.ellipse(0, 8, 8, 3);
+    this.shadow.fill({ color: 0x000000, alpha: shadowAlpha });
 
-    // Status glow
+    // Status glow ring
     const glowColor = STATUS_GLOW[data.status];
     if (glowColor && isActive) {
       this.glow.visible = true;
       this.glow.clear();
-      const r = 16 + Math.sin(this.bobOffset * 2) * 3;
-      this.glow.circle(0, -4, r);
-      this.glow.fill({ color: glowColor, alpha: 0.1 + Math.sin(this.bobOffset * 2) * 0.05 });
-      // Inner glow
-      this.glow.circle(0, -4, r * 0.6);
-      this.glow.fill({ color: glowColor, alpha: 0.06 });
+      // Pixel-style ring (octagon instead of smooth circle)
+      this.glow.ellipse(0, 0, 14, 14);
+      this.glow.fill({ color: glowColor, alpha: 0.08 + Math.sin(this.bobOffset * 2) * 0.04 });
+      // Ground ring
+      this.glow.ellipse(0, 8, 10, 4);
+      this.glow.stroke({ color: glowColor, width: 2, alpha: 0.3 + Math.sin(this.bobOffset * 2) * 0.15 });
 
-      // Status ring around feet
-      this.statusRing.visible = true;
-      this.statusRing.clear();
-      this.statusRing.ellipse(0, 8, 10, 4);
-      this.statusRing.stroke({ color: glowColor, width: 1.5, alpha: 0.35 + Math.sin(this.bobOffset * 2) * 0.15 });
-      // Inner ring
-      this.statusRing.ellipse(0, 8, 7, 3);
-      this.statusRing.stroke({ color: glowColor, width: 0.5, alpha: 0.2 });
+      // Status bubble
+      this.statusBubble.visible = true;
+      this.drawStatusBubble(this.statusBubble, data.status, glowColor);
     } else {
       this.glow.visible = false;
-      this.statusRing.visible = false;
+      this.statusBubble.visible = false;
     }
 
     // Status label

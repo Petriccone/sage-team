@@ -22,7 +22,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse at center, #0c0c1a 0%, #060610 60%, #040408 100%);
+  background: radial-gradient(ellipse at center, #1a1a2e 0%, #12121e 60%, #0a0a14 100%);
 }
 
 .canvas-container canvas {

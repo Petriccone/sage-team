@@ -1,6 +1,6 @@
 {
   "name": "sage-team",
-  "version": "3.4.0",
+  "version": "3.4.2",
   "description": "AI-powered autonomous software company with 11 agents, Claude Code execution, and PixiJS isometric office visualization.",
   "main": "dist/index.js",
   "bin": {

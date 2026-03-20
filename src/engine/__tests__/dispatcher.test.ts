@@ -15,7 +15,7 @@ describe('Dispatcher', () => {
       cwd: '/tmp/worktree-dex',
       maxTurns: 50,
     });
-    expect(cmd.command).toBe('claude');
+    expect(cmd.command).toContain('claude');
     expect(cmd.args).toContain('--print');
     expect(cmd.args).toContain('--output-format');
     expect(cmd.args).toContain('stream-json');

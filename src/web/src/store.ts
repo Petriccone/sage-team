@@ -76,6 +76,7 @@ export interface StoreState {
   prs: PullRequest[];
   sprint: Sprint | null;
   selectedPR: string | null;
+  selectedAgent: string | null;
   wowEvents: WowEvent[];
   activity: ActivityEntry[];
 
@@ -85,6 +86,7 @@ export interface StoreState {
   setSprint: (sprint: Sprint | null) => void;
   setPRs: (prs: PullRequest[]) => void;
   setSelectedPR: (id: string | null) => void;
+  setSelectedAgent: (id: string | null) => void;
   addMessage: (msg: Message) => void;
   updateAgent: (id: string, updates: Partial<Agent>) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
@@ -105,6 +107,7 @@ export const useStore = create<StoreState>((set) => ({
   prs: [],
   sprint: null,
   selectedPR: null,
+  selectedAgent: null,
   wowEvents: [],
   activity: [],
 
@@ -114,6 +117,7 @@ export const useStore = create<StoreState>((set) => ({
   setSprint: (sprint) => set({ sprint }),
   setPRs: (prs) => set({ prs }),
   setSelectedPR: (id) => set({ selectedPR: id }),
+  setSelectedAgent: (id) => set({ selectedAgent: id }),
 
   addMessage: (msg) =>
     set((s) => ({ messages: [...s.messages.slice(-199), msg] })),

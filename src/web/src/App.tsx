@@ -6,6 +6,7 @@ import { ChatPanel } from './panels/ChatPanel';
 import { TaskBoard } from './panels/TaskBoard';
 import { PRReview } from './panels/PRReview';
 import { GoalInput } from './panels/GoalInput';
+import { AgentDetail } from './panels/AgentDetail';
 import './App.css';
 
 export function App() {
@@ -31,6 +32,7 @@ export function App() {
       </div>
       <GoalInput />
       <PRReview />
+      <AgentDetail />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import path from 'path';
 import { EventEmitter } from 'events';
 import { Database } from '../state/database';
 import { SessionsRepo } from '../state/repositories/sessions';
@@ -7,7 +8,7 @@ import { SprintsRepo } from '../state/repositories/sprints';
 import { EventsRepo } from '../state/repositories/events';
 import { MessagesRepo } from '../state/repositories/messages';
 import { PullRequestsRepo } from '../state/repositories/pull-requests';
-import { CEOBrain, AgentRoster } from './ceo-brain';
+import { CEOBrain, CEOResponse, AgentRoster } from './ceo-brain';
 import { Dispatcher } from './dispatcher';
 import { PRManager } from './pr-manager';
 import { PromptBuilder } from './prompt-builder';
@@ -79,14 +80,18 @@ export class Orchestrator extends EventEmitter {
   }
 
   private setupDispatcherListeners(): void {
-    this.dispatcher.on('agent-status', ({ agentId, status }) => {
+    this.dispatcher.on('agent-status', ({ agentId, status, tool, detail }) => {
       this.agents.updateStatus(agentId, status);
-      this.emitEvent('agent:status', agentId, { status });
+      this.emitEvent('agent:status', agentId, { status, tool, detail });
     });
 
-    this.dispatcher.on('task-complete', ({ agentId, taskId, cost, duration, turns }) => {
+    this.dispatcher.on('agent-narration', ({ agentId, taskId, text }) => {
+      this.emitEvent('agent:narration', agentId, { taskId, text });
+    });
+
+    this.dispatcher.on('task-complete', ({ agentId, taskId, cost, duration, turns, result }) => {
       this.handleTaskComplete(taskId, agentId);
-      this.emitEvent('task:completed', agentId, { taskId, cost, duration, turns });
+      this.emitEvent('task:completed', agentId, { taskId, cost, duration, turns, result });
     });
 
     this.dispatcher.on('agent-failed', ({ agentId, taskId, exitCode }) => {
@@ -145,6 +150,45 @@ export class Orchestrator extends EventEmitter {
       this.tickTimer = null;
     }
     this.dispatcher.killAll();
+  }
+
+  /** Chat with CEO Sage before starting a sprint */
+  async chatWithCEO(message: string): Promise<CEOResponse> {
+    if (!this._sessionId) {
+      // Auto-start session for chatting
+      this.start();
+    }
+
+    this.agents.updateStatus('sage', 'thinking');
+    this.emitEvent('agent:status', 'sage', { status: 'thinking' });
+
+    const response = await this.ceoBrain.chat(message);
+
+    if (response.type === 'ready') {
+      this.agents.updateStatus('sage', 'planning');
+      this.emitEvent('agent:status', 'sage', { status: 'planning' });
+      this.emitEvent('system', 'sage', { message: `Sage: "${response.message.slice(0, 200)}"` });
+    } else {
+      this.agents.updateStatus('sage', 'idle');
+      this.emitEvent('agent:status', 'sage', { status: 'idle' });
+      this.emitEvent('agent:narration', 'sage', { text: response.message.slice(0, 200) });
+    }
+
+    return response;
+  }
+
+  /** Start the sprint after CEO conversation — uses conversation context */
+  async launchSprint(goal: string): Promise<void> {
+    if (!this._sessionId) throw new Error('No active session');
+
+    // Emit meeting event
+    this.emitEvent('meeting:start', null, {
+      agents: PERSONAS.map(p => p.id),
+    });
+
+    await this.submitGoal(goal);
+
+    this.emitEvent('meeting:end', null, {});
   }
 
   async submitGoal(goal: string): Promise<void> {
@@ -244,9 +288,20 @@ export class Orchestrator extends EventEmitter {
       });
 
       // Determine working directory
-      const cwd = this.config.autonomyMode === 'sandbox'
-        ? this.prManager.worktreePath(agentId, task.id)
-        : process.cwd();
+      let cwd = process.cwd();
+      if (this.config.autonomyMode === 'sandbox') {
+        try {
+          const taskSlug = task.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40);
+          cwd = this.prManager.createWorktree(agentId, task.id, taskSlug, process.cwd());
+          // Make path absolute if relative
+          if (!path.isAbsolute(cwd)) {
+            cwd = path.join(process.cwd(), cwd);
+          }
+        } catch (err: any) {
+          // Worktree creation can fail (dirty repo, no git, etc.) — fall back to cwd
+          this.emitEvent('system', agentId, { message: `Worktree failed, using project dir: ${err.message}` });
+        }
+      }
 
       // Mark task as in_progress
       this.tasks.assign(task.id, agentId);

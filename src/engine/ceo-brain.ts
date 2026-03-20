@@ -24,9 +24,53 @@ export interface DecompositionResult {
   }[];
 }
 
+export interface CEOResponse {
+  type: 'question' | 'ready';
+  message: string;           // Sage's response text (always present)
+  questions?: string[];       // Clarification questions (when type=question)
+  summary?: string;           // Project summary (when type=ready)
+}
+
+const CEO_SYSTEM_PROMPT = `You are Sage, the CEO of Sage Team — an AI software company with 11 specialized agents. You are warm, professional, and strategic. You speak directly but with personality.
+
+Your job is to understand what the user wants to build BEFORE assigning any work to your team. You act like a real CEO: you listen, ask smart questions, and make sure you fully understand the scope.
+
+## Your Personality
+- Confident but not arrogant
+- Direct and efficient — you value everyone's time
+- You use the team members' names naturally (Nova the CTO, Dex the senior dev, Uma the designer, etc.)
+- You occasionally reference your team's strengths ("Dex loves a good TDD challenge", "Uma has great taste in UI")
+- You speak in first person as Sage
+
+## Conversation Flow
+When the user describes a project:
+1. Acknowledge what they want
+2. Ask 2-4 clarifying questions about scope, tech preferences, design style, etc.
+3. When you have enough info, summarize the plan and say you're ready
+
+## Response Format
+ALWAYS respond with ONLY valid JSON (no markdown, no explanation):
+
+When you need more info:
+{
+  "type": "question",
+  "message": "Your conversational response to the user",
+  "questions": ["Question 1?", "Question 2?"]
+}
+
+When you're ready to start (you have enough context):
+{
+  "type": "ready",
+  "message": "Your conversational response summarizing the plan",
+  "summary": "Concise technical summary of what will be built"
+}
+
+IMPORTANT: Only set type="ready" when you genuinely have enough context. If the user's goal is very simple and clear (like "create a hello world page"), you can skip questions and go straight to ready.`;
+
 export class CEOBrain {
   private config: CEOBrainConfig;
   private client: Anthropic | null = null;
+  private conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
 
   constructor(config: CEOBrainConfig) {
     this.config = config;
@@ -35,19 +79,72 @@ export class CEOBrain {
     } else if (config.apiKey) {
       this.client = new Anthropic({ apiKey: config.apiKey });
     } else if (process.env.ANTHROPIC_API_KEY) {
-      // SDK reads ANTHROPIC_API_KEY from environment automatically
       this.client = new Anthropic();
     }
   }
 
-  buildDecompositionPrompt(goal: string, roster: AgentRoster[]): string {
+  /** Start a conversation about a new goal */
+  async chat(userMessage: string): Promise<CEOResponse> {
+    if (!this.client) {
+      throw new Error('CEO Brain not initialized: no API key');
+    }
+
+    this.conversationHistory.push({ role: 'user', content: userMessage });
+
+    const response = await this.client.messages.create({
+      model: this.config.model,
+      max_tokens: 1024,
+      system: CEO_SYSTEM_PROMPT,
+      messages: this.conversationHistory,
+    });
+
+    const text = response.content
+      .filter(block => block.type === 'text')
+      .map(block => (block as { type: 'text'; text: string }).text)
+      .join('');
+
+    this.conversationHistory.push({ role: 'assistant', content: text });
+
+    // Parse the JSON response
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
+      return {
+        type: parsed.type || 'question',
+        message: parsed.message || text,
+        questions: parsed.questions,
+        summary: parsed.summary,
+      };
+    } catch {
+      // If JSON parsing fails, treat as a question
+      return { type: 'question', message: text };
+    }
+  }
+
+  /** Reset conversation for a new goal */
+  resetConversation(): void {
+    this.conversationHistory = [];
+  }
+
+  /** Get conversation context as a string for decomposition */
+  getConversationContext(): string {
+    return this.conversationHistory
+      .map(m => `${m.role === 'user' ? 'User' : 'Sage'}: ${m.content}`)
+      .join('\n\n');
+  }
+
+  buildDecompositionPrompt(goal: string, roster: AgentRoster[], context?: string): string {
     const agentList = roster.map(a =>
       `- **${a.name}** (${a.id}): ${a.role} — skills: ${a.skills.join(', ')}`
     ).join('\n');
 
+    const contextBlock = context
+      ? `## Conversation Context\n${context}\n\n`
+      : '';
+
     return `You are Sage, CEO of an AI software company. Decompose this goal into a sprint with concrete tasks.
 
-## Goal
+${contextBlock}## Goal
 ${goal}
 
 ## Available Team
@@ -112,7 +209,12 @@ Respond with ONLY valid JSON (no markdown, no explanation):
       throw new Error('CEO Brain not initialized: no API key');
     }
 
-    const prompt = this.buildDecompositionPrompt(goal, roster);
+    // Include conversation context if available
+    const context = this.conversationHistory.length > 0
+      ? this.getConversationContext()
+      : undefined;
+
+    const prompt = this.buildDecompositionPrompt(goal, roster, context);
 
     const response = await this.client.messages.create({
       model: this.config.model,

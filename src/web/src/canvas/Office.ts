@@ -1,10 +1,9 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { TILE_W, TILE_H, toScreen } from './iso';
-import { ROOMS, BUILDING, SEATS, FURNITURE, getSeatPosition, type RoomDef, type FurnitureDef } from './rooms';
+import { ROOMS, BUILDING, FURNITURE, type RoomDef, type FurnitureDef } from './rooms';
 import { AgentSprite, type AgentData } from './Agent';
 
-const WALL_HEIGHT = 28;
-const PX = 2;
+const WALL_H = 36;
 
 export class Office {
   app: Application;
@@ -24,7 +23,7 @@ export class Office {
     await this.app.init({
       canvas,
       resizeTo: canvas.parentElement!,
-      background: 0x1a1a2e,
+      background: 0x0a0a18,
       antialias: false,
       autoDensity: true,
       resolution: window.devicePixelRatio || 1,
@@ -42,141 +41,152 @@ export class Office {
   private centerCamera() {
     const sw = this.app.screen.width;
     const sh = this.app.screen.height;
-    // Center on the middle of the building
     const center = toScreen(BUILDING.w / 2, BUILDING.h / 2);
     this.world.x = sw / 2 - center.x;
     this.world.y = sh / 2.5 - center.y;
   }
 
   private drawBuilding() {
-    // 1. Draw the outer building shell (floor + outer walls)
+    this.drawAmbientGlow();
     this.drawBuildingShell();
-
-    // 2. Draw each room's floor tiles and internal walls
     for (const room of ROOMS) {
       this.drawRoomFloor(room);
     }
-
-    // 3. Draw internal wall dividers between rooms
     this.drawInternalWalls();
-
-    // 4. Draw furniture in each room
     for (const room of ROOMS) {
-      const roomFurniture = FURNITURE.filter(f => f.room === room.id);
-      const accentColor = parseInt(room.color.slice(1), 16);
-      for (const furn of roomFurniture) {
-        this.drawFurniture(furn, accentColor, room);
+      const accent = parseInt(room.color.slice(1), 16);
+      for (const furn of FURNITURE.filter(f => f.room === room.id)) {
+        this.drawFurniture(furn, accent, room);
       }
     }
+    this.drawRoomLabels();
   }
 
-  /** Draw the outer shell of the building — back and left walls */
+  /** Soft ambient glow beneath the building */
+  private drawAmbientGlow() {
+    const g = new Graphics();
+    const center = toScreen(BUILDING.w / 2, BUILDING.h / 2);
+    // Large soft glow
+    g.ellipse(center.x, center.y + 20, 500, 250);
+    g.fill({ color: 0x1a1a3a, alpha: 0.4 });
+    g.ellipse(center.x, center.y + 20, 350, 180);
+    g.fill({ color: 0x1e1e40, alpha: 0.3 });
+    g.zIndex = -100;
+    this.world.addChild(g);
+  }
+
+  /** Building shell — dark steel walls with neon gold accent */
   private drawBuildingShell() {
-    const container = new Container();
-    container.sortableChildren = true;
+    const c = new Container();
+    c.sortableChildren = true;
 
     const { col, row, w, h } = BUILDING;
-
-    // Corner positions of the entire building
     const tl = toScreen(col, row);
     const tr = toScreen(col + w, row);
     const bl = toScreen(col, row + h);
     const br = toScreen(col + w, row + h);
 
-    // ── Outer back wall (top-left to top-right) ──
-    const backWall = new Graphics();
-    backWall.poly([
+    // ── Back wall ──
+    const back = new Graphics();
+    back.poly([
       { x: tl.x, y: tl.y },
-      { x: tl.x, y: tl.y - WALL_HEIGHT },
-      { x: tr.x, y: tr.y - WALL_HEIGHT },
+      { x: tl.x, y: tl.y - WALL_H },
+      { x: tr.x, y: tr.y - WALL_H },
       { x: tr.x, y: tr.y },
     ]);
-    backWall.fill({ color: 0x686878, alpha: 1 });
-    // Horizontal panel lines
-    for (let i = 1; i <= 4; i++) {
-      const frac = i / 5;
-      const y1 = tl.y - WALL_HEIGHT * (1 - frac);
-      const y2 = tr.y - WALL_HEIGHT * (1 - frac);
-      backWall.moveTo(tl.x, y1);
-      backWall.lineTo(tr.x, y2);
-      backWall.stroke({ color: 0x000000, width: 1, alpha: 0.06 });
+    back.fill({ color: 0x16162a });
+    // Subtle horizontal bands
+    for (let i = 1; i <= 3; i++) {
+      const frac = i / 4;
+      back.moveTo(tl.x, tl.y - WALL_H * (1 - frac));
+      back.lineTo(tr.x, tr.y - WALL_H * (1 - frac));
+      back.stroke({ color: 0x222240, width: 1, alpha: 0.5 });
     }
-    // Top accent line
-    backWall.moveTo(tl.x, tl.y - WALL_HEIGHT);
-    backWall.lineTo(tr.x, tr.y - WALL_HEIGHT);
-    backWall.stroke({ color: 0xffd700, width: 2, alpha: 0.4 });
-    backWall.zIndex = -10;
-    container.addChild(backWall);
+    // Neon top accent
+    back.moveTo(tl.x, tl.y - WALL_H);
+    back.lineTo(tr.x, tr.y - WALL_H);
+    back.stroke({ color: 0xffd700, width: 2, alpha: 0.8 });
+    // Bottom edge glow
+    back.moveTo(tl.x, tl.y);
+    back.lineTo(tr.x, tr.y);
+    back.stroke({ color: 0xffd700, width: 1, alpha: 0.15 });
+    back.zIndex = -10;
+    c.addChild(back);
 
-    // ── Outer left wall (top-left to bottom-left) ──
-    const leftWall = new Graphics();
-    leftWall.poly([
+    // ── Left wall ──
+    const left = new Graphics();
+    left.poly([
       { x: tl.x, y: tl.y },
-      { x: tl.x, y: tl.y - WALL_HEIGHT },
-      { x: bl.x, y: bl.y - WALL_HEIGHT },
+      { x: tl.x, y: tl.y - WALL_H },
+      { x: bl.x, y: bl.y - WALL_H },
       { x: bl.x, y: bl.y },
     ]);
-    leftWall.fill({ color: 0x787888, alpha: 1 });
-    for (let i = 1; i <= 4; i++) {
-      const frac = i / 5;
-      const y1 = tl.y - WALL_HEIGHT * (1 - frac);
-      const y2 = bl.y - WALL_HEIGHT * (1 - frac);
-      leftWall.moveTo(tl.x, y1);
-      leftWall.lineTo(bl.x, y2);
-      leftWall.stroke({ color: 0x000000, width: 1, alpha: 0.06 });
+    left.fill({ color: 0x121228 });
+    for (let i = 1; i <= 3; i++) {
+      const frac = i / 4;
+      left.moveTo(tl.x, tl.y - WALL_H * (1 - frac));
+      left.lineTo(bl.x, bl.y - WALL_H * (1 - frac));
+      left.stroke({ color: 0x1e1e3a, width: 1, alpha: 0.5 });
     }
-    leftWall.moveTo(tl.x, tl.y - WALL_HEIGHT);
-    leftWall.lineTo(bl.x, bl.y - WALL_HEIGHT);
-    leftWall.stroke({ color: 0xffd700, width: 2, alpha: 0.3 });
-    leftWall.zIndex = -10;
-    container.addChild(leftWall);
+    left.moveTo(tl.x, tl.y - WALL_H);
+    left.lineTo(bl.x, bl.y - WALL_H);
+    left.stroke({ color: 0xffd700, width: 2, alpha: 0.6 });
+    left.zIndex = -10;
+    c.addChild(left);
 
-    // ── Building sign ──
+    // ── Building sign with glow backdrop ──
     const signPos = toScreen(col + w / 2, row);
+    // Glow behind sign
+    const signGlow = new Graphics();
+    signGlow.roundRect(signPos.x - 70, signPos.y - WALL_H - 22, 140, 20, 4);
+    signGlow.fill({ color: 0xffd700, alpha: 0.08 });
+    signGlow.zIndex = -9;
+    c.addChild(signGlow);
+
     const sign = new Text({
-      text: 'SAGE TEAM HQ',
+      text: '\u2727 SAGE TEAM HQ \u2727',
       style: new TextStyle({
-        fontSize: 11,
+        fontSize: 13,
         fill: '#ffd700',
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
-        letterSpacing: 2,
-        dropShadow: { color: '#000000', blur: 4, distance: 1, alpha: 1 },
+        letterSpacing: 3,
+        dropShadow: { color: '#ffd700', blur: 8, distance: 0, alpha: 0.5 },
         stroke: { color: '#000000', width: 2 },
       }),
     });
     sign.anchor.set(0.5, 0.5);
     sign.x = signPos.x;
-    sign.y = signPos.y - WALL_HEIGHT - 10;
+    sign.y = signPos.y - WALL_H - 12;
     sign.zIndex = -9;
-    container.addChild(sign);
+    c.addChild(sign);
 
-    // ── Floor outline (subtle border around entire building) ──
+    // ── Floor outline ──
     const outline = new Graphics();
     outline.poly([tl, tr, br, bl]);
-    outline.stroke({ color: 0xffd700, width: 1, alpha: 0.15 });
+    outline.stroke({ color: 0xffd700, width: 1, alpha: 0.08 });
     outline.zIndex = -5;
-    container.addChild(outline);
+    c.addChild(outline);
 
-    this.world.addChild(container);
+    this.world.addChild(c);
   }
 
-  /** Draw floor tiles for a room with checkerboard pattern */
+  /** Room floor — clean flat fill with ambient glow, no checkerboard */
   private drawRoomFloor(room: RoomDef) {
-    const container = new Container();
-    container.sortableChildren = true;
+    const c = new Container();
+    c.sortableChildren = true;
     const brPos = toScreen(room.col + room.w, room.row + room.h);
-    container.zIndex = brPos.y - 1000; // Floor below everything
+    c.zIndex = brPos.y - 1000;
 
     const floorColor = parseInt(room.floorColor.slice(1), 16);
-    const accentColor = parseInt(room.color.slice(1), 16);
+    const accent = parseInt(room.color.slice(1), 16);
 
-    // Floor tiles
-    for (let c = 0; c < room.w; c++) {
-      for (let r = 0; r < room.h; r++) {
-        const pos = toScreen(room.col + c, room.row + r);
+    // Room floor — single clean diamond per tile, very subtle variation
+    for (let col = 0; col < room.w; col++) {
+      for (let row = 0; row < room.h; row++) {
+        const pos = toScreen(room.col + col, room.row + row);
         const tile = new Graphics();
-        const isLight = (c + r) % 2 === 0;
+        const isAlt = (col + row) % 2 === 0;
 
         tile.poly([
           { x: 0, y: 0 },
@@ -184,420 +194,458 @@ export class Office {
           { x: 0, y: TILE_H },
           { x: -TILE_W / 2, y: TILE_H / 2 },
         ]);
-        tile.fill({ color: floorColor, alpha: isLight ? 1.0 : 0.85 });
+        // Very subtle alternation — not a checkerboard, just depth
+        tile.fill({ color: floorColor, alpha: isAlt ? 1.0 : 0.92 });
 
-        // Subtle grid
+        // Hairline grid — barely visible
         tile.poly([
           { x: 0, y: 0 },
           { x: TILE_W / 2, y: TILE_H / 2 },
           { x: 0, y: TILE_H },
           { x: -TILE_W / 2, y: TILE_H / 2 },
         ]);
-        tile.stroke({ color: 0x000000, width: 0.5, alpha: 0.06 });
+        tile.stroke({ color: 0xffffff, width: 0.5, alpha: 0.03 });
 
         tile.x = pos.x;
         tile.y = pos.y;
-        container.addChild(tile);
+        c.addChild(tile);
       }
     }
 
-    // Room accent border on floor (colored line around room boundary)
+    // Ambient room glow — soft colored light on floor center
+    const centerPos = toScreen(room.col + room.w / 2, room.row + room.h / 2);
+    const glow = new Graphics();
+    glow.ellipse(centerPos.x, centerPos.y + TILE_H / 2, room.w * 18, room.h * 10);
+    glow.fill({ color: accent, alpha: 0.04 });
+    c.addChild(glow);
+
+    // Room accent border — thin neon line
     const tl = toScreen(room.col, room.row);
     const tr = toScreen(room.col + room.w, room.row);
     const br = toScreen(room.col + room.w, room.row + room.h);
     const bl = toScreen(room.col, room.row + room.h);
     const border = new Graphics();
     border.poly([tl, tr, br, bl]);
-    border.stroke({ color: accentColor, width: 1, alpha: 0.2 });
-    container.addChild(border);
+    border.stroke({ color: accent, width: 1, alpha: 0.12 });
+    c.addChild(border);
 
-    // Room label — small, at the top-left corner of the room, out of the way
-    const labelPos = toScreen(room.col + room.w / 2, room.row + 0.2);
-    const label = new Text({
-      text: `${room.icon} ${room.label}`,
-      style: new TextStyle({
-        fontSize: 9,
-        fill: room.color,
-        fontFamily: "'Courier New', 'Consolas', monospace",
-        fontWeight: '700',
-        letterSpacing: 0.5,
-        align: 'center',
-        dropShadow: { color: '#000000', blur: 4, distance: 1, alpha: 1 },
-        stroke: { color: '#000000', width: 2 },
-      }),
-    });
-    label.anchor.set(0.5, 0.5);
-    label.x = labelPos.x;
-    label.y = labelPos.y;
-    label.alpha = 0.9;
-    container.addChild(label);
-
-    this.world.addChild(container);
+    this.world.addChild(c);
   }
 
-  /** Draw internal wall dividers between adjacent rooms */
-  private drawInternalWalls() {
-    const container = new Container();
-    container.sortableChildren = true;
+  /** Room labels — clear, readable, with glow */
+  private drawRoomLabels() {
+    for (const room of ROOMS) {
+      const accent = parseInt(room.color.slice(1), 16);
+      const pos = toScreen(room.col + room.w / 2, room.row + 0.3);
 
-    // Find internal boundaries by checking adjacent rooms
-    // We draw thin wall segments where two rooms share an edge
-    const wallSegments: Array<{
+      // Glow backdrop behind label
+      const backdrop = new Graphics();
+      backdrop.roundRect(pos.x - 40, pos.y - 8, 80, 16, 3);
+      backdrop.fill({ color: 0x000000, alpha: 0.5 });
+      backdrop.roundRect(pos.x - 40, pos.y - 8, 80, 16, 3);
+      backdrop.stroke({ color: accent, width: 0.5, alpha: 0.3 });
+      backdrop.zIndex = pos.y + 500;
+      this.world.addChild(backdrop);
+
+      const label = new Text({
+        text: `${room.icon} ${room.label}`,
+        style: new TextStyle({
+          fontSize: 10,
+          fill: '#ffffff',
+          fontFamily: "'Courier New', 'Consolas', monospace",
+          fontWeight: '700',
+          letterSpacing: 0.8,
+          dropShadow: { color: room.color, blur: 6, distance: 0, alpha: 0.6 },
+          stroke: { color: '#000000', width: 2 },
+        }),
+      });
+      label.anchor.set(0.5, 0.5);
+      label.x = pos.x;
+      label.y = pos.y;
+      label.zIndex = pos.y + 501;
+      this.world.addChild(label);
+    }
+  }
+
+  /** Glass internal walls with neon accent edges */
+  private drawInternalWalls() {
+    const c = new Container();
+    c.sortableChildren = true;
+
+    const segments: Array<{
       from: { x: number; y: number };
       to: { x: number; y: number };
       color: number;
-      side: 'horizontal' | 'vertical';
+      side: 'h' | 'v';
     }> = [];
 
-    // Check each pair of rooms for shared edges
     for (let i = 0; i < ROOMS.length; i++) {
       for (let j = i + 1; j < ROOMS.length; j++) {
         const a = ROOMS[i];
         const b = ROOMS[j];
-        const aColor = parseInt(a.color.slice(1), 16);
-        const bColor = parseInt(b.color.slice(1), 16);
-        const mixColor = blendColors(aColor, bColor, 0.5);
+        const ca = parseInt(a.color.slice(1), 16);
+        const cb = parseInt(b.color.slice(1), 16);
+        const mix = blendColors(ca, cb, 0.5);
 
-        // Check if rooms share a horizontal edge (same row boundary)
-        // Room A bottom edge meets Room B top edge
+        // Horizontal shared edge (a bottom = b top)
         if (a.row + a.h === b.row) {
-          const overlapStart = Math.max(a.col, b.col);
-          const overlapEnd = Math.min(a.col + a.w, b.col + b.w);
-          if (overlapStart < overlapEnd) {
-            wallSegments.push({
-              from: toScreen(overlapStart, a.row + a.h),
-              to: toScreen(overlapEnd, a.row + a.h),
-              color: mixColor,
-              side: 'horizontal',
-            });
-          }
+          const s = Math.max(a.col, b.col);
+          const e = Math.min(a.col + a.w, b.col + b.w);
+          if (s < e) segments.push({ from: toScreen(s, a.row + a.h), to: toScreen(e, a.row + a.h), color: mix, side: 'h' });
         }
         if (b.row + b.h === a.row) {
-          const overlapStart = Math.max(a.col, b.col);
-          const overlapEnd = Math.min(a.col + a.w, b.col + b.w);
-          if (overlapStart < overlapEnd) {
-            wallSegments.push({
-              from: toScreen(overlapStart, b.row + b.h),
-              to: toScreen(overlapEnd, b.row + b.h),
-              color: mixColor,
-              side: 'horizontal',
-            });
-          }
+          const s = Math.max(a.col, b.col);
+          const e = Math.min(a.col + a.w, b.col + b.w);
+          if (s < e) segments.push({ from: toScreen(s, b.row + b.h), to: toScreen(e, b.row + b.h), color: mix, side: 'h' });
         }
 
-        // Check if rooms share a vertical edge (same col boundary)
+        // Vertical shared edge (a right = b left)
         if (a.col + a.w === b.col) {
-          const overlapStart = Math.max(a.row, b.row);
-          const overlapEnd = Math.min(a.row + a.h, b.row + b.h);
-          if (overlapStart < overlapEnd) {
-            wallSegments.push({
-              from: toScreen(a.col + a.w, overlapStart),
-              to: toScreen(a.col + a.w, overlapEnd),
-              color: mixColor,
-              side: 'vertical',
-            });
-          }
+          const s = Math.max(a.row, b.row);
+          const e = Math.min(a.row + a.h, b.row + b.h);
+          if (s < e) segments.push({ from: toScreen(a.col + a.w, s), to: toScreen(a.col + a.w, e), color: mix, side: 'v' });
         }
         if (b.col + b.w === a.col) {
-          const overlapStart = Math.max(a.row, b.row);
-          const overlapEnd = Math.min(a.row + a.h, b.row + b.h);
-          if (overlapStart < overlapEnd) {
-            wallSegments.push({
-              from: toScreen(b.col + b.w, overlapStart),
-              to: toScreen(b.col + b.w, overlapEnd),
-              color: mixColor,
-              side: 'vertical',
-            });
-          }
+          const s = Math.max(a.row, b.row);
+          const e = Math.min(a.row + a.h, b.row + b.h);
+          if (s < e) segments.push({ from: toScreen(b.col + b.w, s), to: toScreen(b.col + b.w, e), color: mix, side: 'v' });
         }
       }
     }
 
-    // Draw each wall segment as a thin 3D wall
-    for (const seg of wallSegments) {
-      const wallH = WALL_HEIGHT * 0.7; // Internal walls slightly shorter than outer
+    for (const seg of segments) {
+      const wh = WALL_H * 0.65;
       const wall = new Graphics();
 
-      // Wall face — solid panel so rooms are clearly separated
+      // Glass wall panel — dark, semi-transparent
       wall.poly([
         seg.from,
-        { x: seg.from.x, y: seg.from.y - wallH },
-        { x: seg.to.x, y: seg.to.y - wallH },
+        { x: seg.from.x, y: seg.from.y - wh },
+        { x: seg.to.x, y: seg.to.y - wh },
         seg.to,
       ]);
-      const wallBase = seg.side === 'horizontal' ? 0x606070 : 0x585868;
-      wall.fill({ color: wallBase, alpha: 1 });
-      wall.stroke({ color: 0x484858, width: 1, alpha: 1 });
+      wall.fill({ color: seg.side === 'h' ? 0x181830 : 0x141428, alpha: 0.75 });
 
-      // Horizontal panel lines for texture
-      for (let i = 1; i <= 3; i++) {
-        const frac = i / 4;
-        const y1 = seg.from.y - wallH * (1 - frac);
-        const y2 = seg.to.y - wallH * (1 - frac);
-        wall.moveTo(seg.from.x, y1);
-        wall.lineTo(seg.to.x, y2);
-        wall.stroke({ color: 0x000000, width: 0.5, alpha: 0.08 });
-      }
+      // Glass highlight — very subtle vertical gradient illusion
+      wall.poly([
+        { x: seg.from.x, y: seg.from.y - wh },
+        { x: seg.to.x, y: seg.to.y - wh },
+        { x: seg.to.x, y: seg.to.y - wh * 0.6 },
+        { x: seg.from.x, y: seg.from.y - wh * 0.6 },
+      ]);
+      wall.fill({ color: 0xffffff, alpha: 0.03 });
 
-      // Top accent line
-      wall.moveTo(seg.from.x, seg.from.y - wallH);
-      wall.lineTo(seg.to.x, seg.to.y - wallH);
-      wall.stroke({ color: seg.color, width: 1.5, alpha: 0.6 });
+      // Neon top accent — bright colored line
+      wall.moveTo(seg.from.x, seg.from.y - wh);
+      wall.lineTo(seg.to.x, seg.to.y - wh);
+      wall.stroke({ color: seg.color, width: 2, alpha: 0.7 });
 
-      // Doorway gap — cut a visible door opening in the wall center
-      const midX = (seg.from.x + seg.to.x) / 2;
-      const midY = (seg.from.y + seg.to.y) / 2;
-      // Dark door opening
-      const doorW = seg.side === 'horizontal' ? 6 : 3;
-      const doorH = wallH * 0.75;
-      wall.rect(midX - doorW, midY - doorH, doorW * 2, doorH);
-      wall.fill({ color: 0x12121e, alpha: 0.95 });
-      // Door frame accent
-      wall.rect(midX - doorW - 1, midY - doorH, doorW * 2 + 2, 1);
-      wall.fill({ color: seg.color, alpha: 0.5 });
+      // Subtle bottom edge
+      wall.moveTo(seg.from.x, seg.from.y);
+      wall.lineTo(seg.to.x, seg.to.y);
+      wall.stroke({ color: seg.color, width: 1, alpha: 0.1 });
+
+      // Doorway — clean arch opening
+      const mx = (seg.from.x + seg.to.x) / 2;
+      const my = (seg.from.y + seg.to.y) / 2;
+      const dw = seg.side === 'h' ? 8 : 5;
+      const dh = wh * 0.8;
+      // Dark opening
+      wall.rect(mx - dw, my - dh, dw * 2, dh);
+      wall.fill({ color: 0x08081a, alpha: 0.95 });
+      // Door arch accent
+      wall.roundRect(mx - dw - 1, my - dh - 2, dw * 2 + 2, 3, 1);
+      wall.fill({ color: seg.color, alpha: 0.4 });
 
       wall.zIndex = Math.max(seg.from.y, seg.to.y) - 500;
-      container.addChild(wall);
+      c.addChild(wall);
     }
 
-    this.world.addChild(container);
+    this.world.addChild(c);
   }
 
+  /** Premium furniture rendering */
   private drawFurniture(furn: FurnitureDef, accent: number, room: RoomDef) {
     const pos = toScreen(furn.col, furn.row);
     const g = new Graphics();
-    // Set zIndex based on position for proper depth sorting
     g.zIndex = pos.y;
 
     switch (furn.type) {
-      case 'rug': {
-        const rugW = TILE_W * 1.2;
-        const rugH = TILE_H * 1.2;
-        g.poly([
-          { x: pos.x, y: pos.y },
-          { x: pos.x + rugW / 2, y: pos.y + rugH / 2 },
-          { x: pos.x, y: pos.y + rugH },
-          { x: pos.x - rugW / 2, y: pos.y + rugH / 2 },
-        ]);
-        g.fill({ color: accent, alpha: 0.08 });
-        g.poly([
-          { x: pos.x, y: pos.y + 3 },
-          { x: pos.x + rugW / 2 - 5, y: pos.y + rugH / 2 },
-          { x: pos.x, y: pos.y + rugH - 3 },
-          { x: pos.x - rugW / 2 + 5, y: pos.y + rugH / 2 },
-        ]);
-        g.stroke({ color: accent, width: 1, alpha: 0.1 });
-        g.zIndex = pos.y - 1000; // Rug below everything
-        break;
-      }
       case 'desk': {
+        // Modern dark desk — clean isometric
         g.poly([
-          { x: pos.x, y: pos.y - 4 },
-          { x: pos.x + 20, y: pos.y + 6 },
-          { x: pos.x, y: pos.y + 16 },
-          { x: pos.x - 20, y: pos.y + 6 },
-        ]);
-        g.fill({ color: 0x8b6f4a });
-        g.poly([
-          { x: pos.x - 14, y: pos.y + 3 },
-          { x: pos.x + 14, y: pos.y + 3 },
-          { x: pos.x + 12, y: pos.y + 5 },
-          { x: pos.x - 12, y: pos.y + 5 },
-        ]);
-        g.fill({ color: 0xa08058, alpha: 0.6 });
-        g.poly([
-          { x: pos.x + 20, y: pos.y + 6 },
-          { x: pos.x, y: pos.y + 16 },
+          { x: pos.x, y: pos.y - 5 },
+          { x: pos.x + 24, y: pos.y + 7 },
           { x: pos.x, y: pos.y + 19 },
-          { x: pos.x + 20, y: pos.y + 9 },
+          { x: pos.x - 24, y: pos.y + 7 },
         ]);
-        g.fill({ color: 0x6b5030 });
+        g.fill({ color: 0x2a2a3e });
+        // Desk surface highlight
         g.poly([
-          { x: pos.x, y: pos.y + 16 },
-          { x: pos.x - 20, y: pos.y + 6 },
-          { x: pos.x - 20, y: pos.y + 9 },
-          { x: pos.x, y: pos.y + 19 },
+          { x: pos.x, y: pos.y - 5 },
+          { x: pos.x + 22, y: pos.y + 6 },
+          { x: pos.x, y: pos.y + 17 },
+          { x: pos.x - 22, y: pos.y + 6 },
         ]);
-        g.fill({ color: 0x5a4028 });
+        g.fill({ color: 0x36364e });
+        // Accent edge strip
+        g.moveTo(pos.x - 22, pos.y + 6);
+        g.lineTo(pos.x, pos.y - 5);
+        g.lineTo(pos.x + 22, pos.y + 6);
+        g.stroke({ color: accent, width: 1, alpha: 0.2 });
+        // Front panel
+        g.poly([
+          { x: pos.x + 24, y: pos.y + 7 },
+          { x: pos.x, y: pos.y + 19 },
+          { x: pos.x, y: pos.y + 22 },
+          { x: pos.x + 24, y: pos.y + 10 },
+        ]);
+        g.fill({ color: 0x1e1e30 });
+        g.poly([
+          { x: pos.x, y: pos.y + 19 },
+          { x: pos.x - 24, y: pos.y + 7 },
+          { x: pos.x - 24, y: pos.y + 10 },
+          { x: pos.x, y: pos.y + 22 },
+        ]);
+        g.fill({ color: 0x18182a });
         break;
       }
+
       case 'monitor': {
-        g.rect(pos.x - 7, pos.y - 16, 14, 12);
-        g.fill({ color: 0x222222 });
-        g.rect(pos.x - 6, pos.y - 15, 12, 10);
-        g.fill({ color: 0x0a1828 });
-        const colors = [accent, 0x00ff88, 0x00bfff, 0xffa500];
+        // Glowing monitor — the signature look
+        const sw = 18, sh = 14;
+        // Monitor body
+        g.rect(pos.x - sw / 2, pos.y - sh - 6, sw, sh);
+        g.fill({ color: 0x111122 });
+        // Screen — glowing
+        g.rect(pos.x - sw / 2 + 1, pos.y - sh - 5, sw - 2, sh - 2);
+        g.fill({ color: 0x080818 });
+        // Code lines on screen
+        const lineColors = [accent, 0x00ff88, 0x00bfff, 0xffa500, accent];
         for (let i = 0; i < 5; i++) {
-          const lw = 2 + (i * 7 + 3) % 8;
-          g.rect(pos.x - 5, pos.y - 14 + i * 2, lw, 1);
-          g.fill({ color: colors[i % colors.length], alpha: 0.5 });
+          const lw = 3 + ((i * 7 + 5) % 10);
+          g.rect(pos.x - sw / 2 + 3, pos.y - sh - 3 + i * 2.5, lw, 1);
+          g.fill({ color: lineColors[i], alpha: 0.6 });
         }
-        g.rect(pos.x - 6, pos.y - 15, 12, 10);
-        g.fill({ color: accent, alpha: 0.05 });
-        g.rect(pos.x - 1, pos.y - 4, 2, 3);
-        g.fill({ color: 0x333333 });
-        g.rect(pos.x - 4, pos.y - 1, 8, 2);
-        g.fill({ color: 0x333333 });
+        // Screen glow overlay
+        g.rect(pos.x - sw / 2 + 1, pos.y - sh - 5, sw - 2, sh - 2);
+        g.fill({ color: accent, alpha: 0.06 });
+        // Stand
+        g.rect(pos.x - 1, pos.y - 6, 3, 4);
+        g.fill({ color: 0x222238 });
+        g.rect(pos.x - 5, pos.y - 2, 10, 2);
+        g.fill({ color: 0x222238 });
+        // Monitor screen light cast — subtle glow on desk
+        g.ellipse(pos.x, pos.y + 4, 14, 5);
+        g.fill({ color: accent, alpha: 0.04 });
         break;
       }
-      case 'chair': {
-        g.ellipse(pos.x, pos.y + 1, 5, 3);
-        g.fill({ color: 0x333348 });
-        g.rect(pos.x - 3, pos.y - 3, 6, 3);
-        g.fill({ color: 0x2a2a40 });
-        for (let a = 0; a < 4; a++) {
-          const angle = (a / 4) * Math.PI + Math.PI * 0.75;
-          g.rect(
-            Math.round(pos.x + Math.cos(angle) * 5) - 1,
-            Math.round(pos.y + 4 + Math.sin(angle) * 2) - 1,
-            2, 2,
-          );
-          g.fill({ color: 0x444450, alpha: 0.6 });
-        }
-        break;
-      }
-      case 'table': {
-        g.poly([
-          { x: pos.x, y: pos.y - 4 },
-          { x: pos.x + 28, y: pos.y + 10 },
-          { x: pos.x, y: pos.y + 24 },
-          { x: pos.x - 28, y: pos.y + 10 },
-        ]);
-        g.fill({ color: 0x6b5a3a });
-        g.poly([
-          { x: pos.x - 18, y: pos.y + 6 },
-          { x: pos.x + 18, y: pos.y + 6 },
-          { x: pos.x + 16, y: pos.y + 8 },
-          { x: pos.x - 16, y: pos.y + 8 },
-        ]);
-        g.fill({ color: 0x8b7050, alpha: 0.5 });
-        g.poly([
-          { x: pos.x + 28, y: pos.y + 10 },
-          { x: pos.x, y: pos.y + 24 },
-          { x: pos.x, y: pos.y + 27 },
-          { x: pos.x + 28, y: pos.y + 13 },
-        ]);
-        g.fill({ color: 0x4a3a20 });
-        break;
-      }
+
       case 'plant': {
+        // Stylish plant with glow
         g.poly([
-          { x: pos.x - 4, y: pos.y + 2 },
-          { x: pos.x + 4, y: pos.y + 2 },
-          { x: pos.x + 3, y: pos.y + 8 },
-          { x: pos.x - 3, y: pos.y + 8 },
+          { x: pos.x - 5, y: pos.y + 2 },
+          { x: pos.x + 5, y: pos.y + 2 },
+          { x: pos.x + 3, y: pos.y + 10 },
+          { x: pos.x - 3, y: pos.y + 10 },
         ]);
-        g.fill({ color: 0x8b5a3a });
-        g.rect(pos.x - 5, pos.y + 1, 10, 2);
-        g.fill({ color: 0x9b6a4a });
-        g.circle(pos.x, pos.y - 3, 6);
-        g.fill({ color: 0x2d8a4e, alpha: 0.85 });
-        g.circle(pos.x - 3, pos.y - 1, 4);
+        g.fill({ color: 0x2a2a3e });
+        g.rect(pos.x - 6, pos.y + 1, 12, 2);
+        g.fill({ color: 0x36364e });
+        // Foliage with glow
+        g.circle(pos.x, pos.y - 4, 8);
+        g.fill({ color: 0x1a7a3a, alpha: 0.85 });
+        g.circle(pos.x - 4, pos.y - 1, 5);
         g.fill({ color: 0x228b22, alpha: 0.8 });
-        g.circle(pos.x + 3, pos.y - 1, 4);
-        g.fill({ color: 0x3cb371, alpha: 0.8 });
-        g.circle(pos.x, pos.y - 6, 4);
-        g.fill({ color: 0x45b868, alpha: 0.75 });
+        g.circle(pos.x + 4, pos.y - 1, 5);
+        g.fill({ color: 0x2d9e4a, alpha: 0.8 });
+        g.circle(pos.x, pos.y - 8, 5);
+        g.fill({ color: 0x35b858, alpha: 0.75 });
+        // Subtle green glow
+        g.circle(pos.x, pos.y - 2, 12);
+        g.fill({ color: 0x00ff44, alpha: 0.02 });
         break;
       }
+
+      case 'server': {
+        // Server rack with LED lights
+        g.rect(pos.x - 6, pos.y - 18, 12, 24);
+        g.fill({ color: 0x0e0e1e });
+        g.stroke({ color: 0x1e1e38, width: 1 });
+        for (let i = 0; i < 6; i++) {
+          const sy = pos.y - 16 + i * 4;
+          g.rect(pos.x - 5, sy, 10, 3);
+          g.fill({ color: 0x141430 });
+        }
+        // LED lights
+        for (let i = 0; i < 6; i++) {
+          const ly = pos.y - 15 + i * 4;
+          const isActive = i < 4;
+          g.rect(pos.x - 4, ly, 2, 2);
+          g.fill({ color: isActive ? 0x00ff88 : 0x333344 });
+          g.rect(pos.x + 2, ly, 2, 2);
+          g.fill({ color: 0x00bfff, alpha: 0.3 + i * 0.1 });
+        }
+        // Server glow
+        g.ellipse(pos.x, pos.y + 8, 10, 4);
+        g.fill({ color: 0x00ff88, alpha: 0.03 });
+        break;
+      }
+
       case 'shelf': {
-        g.rect(pos.x - 10, pos.y - 10, 20, 18);
-        g.fill({ color: 0x5a4020 });
-        g.stroke({ color: 0x6b5030, width: 1 });
-        g.rect(pos.x - 9, pos.y - 4, 18, 2);
-        g.fill({ color: 0x6b5030 });
-        g.rect(pos.x - 9, pos.y + 3, 18, 2);
-        g.fill({ color: 0x6b5030 });
-        const bookColors = [0x4a6fa5, 0xc44e52, 0x8fbc8f, 0xd4a574, 0x7b68ee];
+        g.rect(pos.x - 12, pos.y - 14, 24, 22);
+        g.fill({ color: 0x1e1e30 });
+        g.stroke({ color: 0x2a2a40, width: 1 });
+        // Shelves
+        g.rect(pos.x - 11, pos.y - 5, 22, 2);
+        g.fill({ color: 0x2a2a40 });
+        g.rect(pos.x - 11, pos.y + 3, 22, 2);
+        g.fill({ color: 0x2a2a40 });
+        // Books
+        const bk = [0x4a6fa5, 0xc44e52, 0x8fbc8f, 0xd4a574, 0x7b68ee];
         for (let i = 0; i < 5; i++) {
-          const bx = pos.x - 8 + i * 4;
-          const bh = 3 + (i * 13 % 4);
-          g.rect(bx, pos.y - 10 + (6 - bh), 3, bh);
-          g.fill({ color: bookColors[i] });
+          const bx = pos.x - 10 + i * 4.5;
+          const bh = 4 + (i * 13 % 4);
+          g.rect(bx, pos.y - 12 + (8 - bh), 3, bh);
+          g.fill({ color: bk[i] });
         }
         for (let i = 0; i < 4; i++) {
-          const bx = pos.x - 7 + i * 5;
-          const bh = 2 + (i * 7 % 3);
-          g.rect(bx, pos.y - 3 + (5 - bh), 3, bh);
-          g.fill({ color: bookColors[(i + 2) % 5] });
+          const bx = pos.x - 9 + i * 5.5;
+          const bh = 3 + (i * 7 % 3);
+          g.rect(bx, pos.y - 4 + (6 - bh), 3, bh);
+          g.fill({ color: bk[(i + 2) % 5] });
         }
         break;
       }
-      case 'server': {
-        g.rect(pos.x - 5, pos.y - 14, 10, 20);
-        g.fill({ color: 0x1a1a28 });
-        g.stroke({ color: 0x2a2a40, width: 1 });
-        for (let i = 0; i < 5; i++) {
-          const sy = pos.y - 12 + i * 4;
-          g.rect(pos.x - 4, sy, 8, 3);
-          g.fill({ color: 0x222238 });
-        }
-        for (let i = 0; i < 5; i++) {
-          const ly = pos.y - 11 + i * 4;
-          g.rect(pos.x - 3, ly, 2, 2);
-          g.fill({ color: i < 3 ? 0x00ff88 : 0x00bfff });
-          g.rect(pos.x + 2, ly, 2, 2);
-          g.fill({ color: 0xff8c00, alpha: 0.4 + i * 0.12 });
-        }
-        break;
-      }
+
       case 'whiteboard': {
-        g.rect(pos.x - 12, pos.y - 10, 24, 16);
-        g.fill({ color: 0x555560 });
-        g.rect(pos.x - 11, pos.y - 9, 22, 14);
-        g.fill({ color: 0xe8e8e8, alpha: 0.2 });
-        g.rect(pos.x - 8, pos.y - 7, 10, 1);
-        g.fill({ color: accent, alpha: 0.4 });
-        g.rect(pos.x - 6, pos.y - 4, 14, 1);
-        g.fill({ color: 0x00bfff, alpha: 0.3 });
-        g.rect(pos.x - 4, pos.y - 1, 8, 1);
-        g.fill({ color: 0x00ff88, alpha: 0.25 });
-        g.rect(pos.x - 3, pos.y + 1, 6, 4);
-        g.stroke({ color: accent, width: 1, alpha: 0.25 });
-        g.rect(pos.x - 8, pos.y + 5, 16, 2);
-        g.fill({ color: 0x555560 });
-        g.rect(pos.x - 3, pos.y + 5, 2, 2);
+        // Sleek whiteboard
+        g.rect(pos.x - 16, pos.y - 14, 32, 22);
+        g.fill({ color: 0x1a1a30 });
+        g.stroke({ color: 0x2a2a48, width: 1 });
+        // Board surface
+        g.rect(pos.x - 14, pos.y - 12, 28, 18);
+        g.fill({ color: 0x0e0e22 });
+        // Content lines
+        g.rect(pos.x - 11, pos.y - 10, 12, 1);
+        g.fill({ color: accent, alpha: 0.5 });
+        g.rect(pos.x - 9, pos.y - 7, 18, 1);
+        g.fill({ color: 0x00bfff, alpha: 0.35 });
+        g.rect(pos.x - 7, pos.y - 4, 10, 1);
+        g.fill({ color: 0x00ff88, alpha: 0.3 });
+        // Diagram box
+        g.rect(pos.x - 4, pos.y - 1, 8, 5);
+        g.stroke({ color: accent, width: 1, alpha: 0.3 });
+        // Marker tray
+        g.rect(pos.x - 10, pos.y + 6, 20, 2);
+        g.fill({ color: 0x2a2a40 });
+        g.rect(pos.x - 4, pos.y + 6, 2, 2);
         g.fill({ color: 0xff4444 });
-        g.rect(pos.x, pos.y + 5, 2, 2);
+        g.rect(pos.x, pos.y + 6, 2, 2);
         g.fill({ color: 0x00ff88 });
-        g.rect(pos.x + 3, pos.y + 5, 2, 2);
+        g.rect(pos.x + 4, pos.y + 6, 2, 2);
         g.fill({ color: 0x00bfff });
         break;
       }
-      case 'couch': {
-        g.roundRect(pos.x - 12, pos.y - 4, 24, 5, 1);
-        g.fill({ color: 0x8b4513 });
-        g.rect(pos.x - 11, pos.y + 1, 10, 6);
-        g.fill({ color: 0xa0522d });
-        g.rect(pos.x + 1, pos.y + 1, 10, 6);
-        g.fill({ color: 0xa0522d });
-        g.rect(pos.x - 13, pos.y - 2, 3, 8);
-        g.fill({ color: 0x8b4513 });
-        g.rect(pos.x + 10, pos.y - 2, 3, 8);
-        g.fill({ color: 0x8b4513 });
-        g.rect(pos.x - 8, pos.y - 1, 5, 3);
-        g.fill({ color: accent, alpha: 0.3 });
+
+      case 'table': {
+        // Large conference/meeting table
+        g.poly([
+          { x: pos.x, y: pos.y - 5 },
+          { x: pos.x + 32, y: pos.y + 11 },
+          { x: pos.x, y: pos.y + 27 },
+          { x: pos.x - 32, y: pos.y + 11 },
+        ]);
+        g.fill({ color: 0x222238 });
+        // Surface highlight
+        g.poly([
+          { x: pos.x, y: pos.y - 3 },
+          { x: pos.x + 28, y: pos.y + 11 },
+          { x: pos.x, y: pos.y + 25 },
+          { x: pos.x - 28, y: pos.y + 11 },
+        ]);
+        g.fill({ color: 0x2a2a42 });
+        // Center accent
+        g.poly([
+          { x: pos.x, y: pos.y + 5 },
+          { x: pos.x + 12, y: pos.y + 11 },
+          { x: pos.x, y: pos.y + 17 },
+          { x: pos.x - 12, y: pos.y + 11 },
+        ]);
+        g.stroke({ color: accent, width: 1, alpha: 0.15 });
+        // Front panel
+        g.poly([
+          { x: pos.x + 32, y: pos.y + 11 },
+          { x: pos.x, y: pos.y + 27 },
+          { x: pos.x, y: pos.y + 30 },
+          { x: pos.x + 32, y: pos.y + 14 },
+        ]);
+        g.fill({ color: 0x18182e });
         break;
       }
+
+      case 'couch': {
+        // Modern dark couch
+        g.roundRect(pos.x - 14, pos.y - 5, 28, 6, 2);
+        g.fill({ color: 0x2a2a42 });
+        g.rect(pos.x - 13, pos.y + 1, 12, 7);
+        g.fill({ color: 0x323250 });
+        g.rect(pos.x + 1, pos.y + 1, 12, 7);
+        g.fill({ color: 0x323250 });
+        // Arms
+        g.rect(pos.x - 15, pos.y - 3, 3, 10);
+        g.fill({ color: 0x2a2a42 });
+        g.rect(pos.x + 12, pos.y - 3, 3, 10);
+        g.fill({ color: 0x2a2a42 });
+        // Accent pillow
+        g.rect(pos.x - 9, pos.y - 2, 6, 4);
+        g.fill({ color: accent, alpha: 0.25 });
+        break;
+      }
+
       case 'coffee': {
+        // Coffee table
         g.poly([
           { x: pos.x, y: pos.y - 1 },
-          { x: pos.x + 10, y: pos.y + 4 },
-          { x: pos.x, y: pos.y + 9 },
-          { x: pos.x - 10, y: pos.y + 4 },
-        ]);
-        g.fill({ color: 0x6b5030 });
-        g.poly([
-          { x: pos.x + 10, y: pos.y + 4 },
-          { x: pos.x, y: pos.y + 9 },
+          { x: pos.x + 12, y: pos.y + 5 },
           { x: pos.x, y: pos.y + 11 },
-          { x: pos.x + 10, y: pos.y + 6 },
+          { x: pos.x - 12, y: pos.y + 5 },
         ]);
-        g.fill({ color: 0x4a3820 });
-        g.rect(pos.x, pos.y + 1, 4, 4);
-        g.fill({ color: 0xf0f0f0, alpha: 0.6 });
-        g.rect(pos.x + 1, pos.y + 2, 2, 2);
-        g.fill({ color: 0x5a3010, alpha: 0.7 });
+        g.fill({ color: 0x222238 });
+        g.poly([
+          { x: pos.x + 12, y: pos.y + 5 },
+          { x: pos.x, y: pos.y + 11 },
+          { x: pos.x, y: pos.y + 13 },
+          { x: pos.x + 12, y: pos.y + 7 },
+        ]);
+        g.fill({ color: 0x18182e });
+        // Coffee cup
+        g.rect(pos.x - 1, pos.y + 1, 5, 5);
+        g.fill({ color: 0xf0f0f0, alpha: 0.5 });
+        g.rect(pos.x, pos.y + 2, 3, 3);
+        g.fill({ color: 0x5a3010, alpha: 0.6 });
+        break;
+      }
+
+      case 'chair': {
+        g.ellipse(pos.x, pos.y + 1, 6, 3);
+        g.fill({ color: 0x1e1e36 });
+        g.rect(pos.x - 4, pos.y - 4, 8, 4);
+        g.fill({ color: 0x222240 });
+        break;
+      }
+
+      case 'rug': {
+        const rw = TILE_W * 1.2;
+        const rh = TILE_H * 1.2;
+        g.poly([
+          { x: pos.x, y: pos.y },
+          { x: pos.x + rw / 2, y: pos.y + rh / 2 },
+          { x: pos.x, y: pos.y + rh },
+          { x: pos.x - rw / 2, y: pos.y + rh / 2 },
+        ]);
+        g.fill({ color: accent, alpha: 0.06 });
+        g.zIndex = pos.y - 1000;
         break;
       }
     }
@@ -621,13 +669,6 @@ export class Office {
     window.removeEventListener('resize', () => this.centerCamera());
     this.app.destroy(true);
   }
-}
-
-function darken(color: number, amount: number): number {
-  const r = Math.max(0, ((color >> 16) & 0xff) * (1 - amount));
-  const g = Math.max(0, ((color >> 8) & 0xff) * (1 - amount));
-  const b = Math.max(0, (color & 0xff) * (1 - amount));
-  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
 }
 
 function blendColors(a: number, b: number, t: number): number {

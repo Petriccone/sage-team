@@ -1,7 +1,7 @@
 // Isometric coordinate system utilities
 
-export const TILE_W = 64;
-export const TILE_H = 32;
+export const TILE_W = 80;
+export const TILE_H = 40;
 
 /** Convert grid (col, row) to screen (x, y) */
 export function toScreen(col: number, row: number): { x: number; y: number } {

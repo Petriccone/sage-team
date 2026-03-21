@@ -2,21 +2,21 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { toScreen } from './iso';
 import { getSeatPosition } from './rooms';
 
-// Pixel art agent colors (shirt/outfit)
+// Agent outfit accent colors (neon-tinted)
 const AGENT_COLORS: Record<string, number> = {
-  sage: 0xffd700, nova: 0x00bfff, aria: 0xb57edc, dex: 0x50c878,
-  flux: 0x4169e1, quinn: 0xff8c00, gage: 0x20b2aa, morgan: 0xff69b4,
-  uma: 0x8a2be2, river: 0x00ced1, atlas: 0x708090,
+  sage: 0xffd700, nova: 0x00e5ff, aria: 0xd17efc, dex: 0x00ff88,
+  flux: 0x4d8aff, quinn: 0xff9b33, gage: 0x20c9a0, morgan: 0xff69b4,
+  uma: 0xa855f7, river: 0x00e5d0, atlas: 0x94a3b8,
 };
 
-// Pixel art skin tones
+// Skin tones
 const SKIN_TONES: Record<string, number> = {
   sage: 0xf5d6b8, nova: 0xc69c6d, aria: 0xf5d6c3, dex: 0x8d5524,
   flux: 0xf5d6b8, quinn: 0xe8c49e, gage: 0x8d5524, morgan: 0xf5d6c3,
   uma: 0xc69c6d, river: 0xf5d6b8, atlas: 0xe8c49e,
 };
 
-// Pixel art hair colors
+// Hair colors
 const HAIR_COLORS: Record<string, number> = {
   sage: 0x2a2a2a, nova: 0x1a1a3a, aria: 0x8a4a2a, dex: 0x0a0a0a,
   flux: 0x4a3a1a, quinn: 0x4a2a1a, gage: 0x0a0a0a, morgan: 0x8a2a1a,
@@ -33,11 +33,11 @@ const HAIR_STYLE: Record<string, number> = {
 const STATUS_GLOW: Record<string, number> = {
   coding: 0x00ff88,
   reviewing: 0x00bfff,
-  testing: 0x9b59b6,
+  testing: 0xa855f7,
   planning: 0xffd700,
-  blocked: 0xff4444,
+  blocked: 0xff3355,
   deploying: 0xff6b35,
-  thinking: 0xcccccc,
+  thinking: 0x888888,
 };
 
 export interface AgentData {
@@ -48,7 +48,7 @@ export interface AgentData {
   position_seat: number;
 }
 
-/** Pixel art style agent — blocky character that sits at desk */
+/** Premium pixel art agent sprite */
 export class AgentSprite {
   container: Container;
   private body: Graphics;
@@ -83,7 +83,7 @@ export class AgentSprite {
     this.glow.visible = false;
     this.container.addChild(this.glow);
 
-    // Pixel art body
+    // Pixel art body — larger (px=3)
     this.body = new Graphics();
     this.drawPixelPerson(this.body, data.id);
     this.body.zIndex = 2;
@@ -95,43 +95,43 @@ export class AgentSprite {
     this.statusBubble.visible = false;
     this.container.addChild(this.statusBubble);
 
-    // Name label
+    // Name label — readable with glow
     this.label = new Text({
       text: data.name,
       style: new TextStyle({
-        fontSize: 9,
-        fill: color,
+        fontSize: 10,
+        fill: '#ffffff',
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
         letterSpacing: 0.5,
-        dropShadow: { color: '#000000', blur: 4, distance: 1, alpha: 1 },
-        stroke: { color: '#000000', width: 2 },
+        dropShadow: { color: rgbToHex(color), blur: 6, distance: 0, alpha: 0.7 },
+        stroke: { color: '#000000', width: 2.5 },
       }),
     });
     this.label.anchor.set(0.5, 0);
-    this.label.y = 14;
+    this.label.y = 18;
     this.label.zIndex = 5;
     this.container.addChild(this.label);
 
-    // Status text (only shown when active)
+    // Status text
     this.statusLabel = new Text({
       text: '',
       style: new TextStyle({
-        fontSize: 7,
-        fill: 0xaaaaaa,
+        fontSize: 8,
+        fill: 0x999999,
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '400',
-        dropShadow: { color: '#000000', blur: 3, distance: 1, alpha: 1 },
+        dropShadow: { color: '#000000', blur: 4, distance: 0, alpha: 1 },
         stroke: { color: '#000000', width: 1.5 },
       }),
     });
     this.statusLabel.anchor.set(0.5, 0);
-    this.statusLabel.y = 24;
+    this.statusLabel.y = 30;
     this.statusLabel.zIndex = 5;
     this.statusLabel.visible = false;
     this.container.addChild(this.statusLabel);
 
-    // Initial position — snap immediately
+    // Initial position
     this.setPositionFromRoom(data.position_room, data.position_seat);
     this.currentX = this.targetX;
     this.currentY = this.targetY;
@@ -146,14 +146,15 @@ export class AgentSprite {
     const skin = SKIN_TONES[agentId] || 0xf5d6b8;
     const hair = HAIR_COLORS[agentId] || 0x2a2a2a;
     const hairStyle = HAIR_STYLE[agentId] || 0;
-    const px = 2;
+    const px = 3; // Larger pixel size for premium look
 
+    // Hair
     switch (hairStyle) {
-      case 0:
+      case 0: // Short
         g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
         g.fill({ color: hair });
         break;
-      case 1:
+      case 1: // Medium
         g.rect(-3 * px, -12 * px, 6 * px, 4 * px);
         g.fill({ color: hair });
         g.rect(-4 * px, -11 * px, 1 * px, 4 * px);
@@ -161,7 +162,7 @@ export class AgentSprite {
         g.rect(3 * px, -11 * px, 1 * px, 4 * px);
         g.fill({ color: hair });
         break;
-      case 2:
+      case 2: // Long
         g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
         g.fill({ color: hair });
         g.rect(-4 * px, -11 * px, 1 * px, 7 * px);
@@ -169,13 +170,13 @@ export class AgentSprite {
         g.rect(3 * px, -11 * px, 1 * px, 7 * px);
         g.fill({ color: hair });
         break;
-      case 3:
+      case 3: // Mohawk
         g.rect(-1 * px, -14 * px, 2 * px, 2 * px);
         g.fill({ color: hair });
         g.rect(-2 * px, -12 * px, 4 * px, 2 * px);
         g.fill({ color: hair });
         break;
-      case 4:
+      case 4: // Bun
         g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
         g.fill({ color: hair });
         g.rect(-1 * px, -14 * px, 2 * px, 2 * px);
@@ -183,18 +184,26 @@ export class AgentSprite {
         break;
     }
 
+    // Head
     g.rect(-3 * px, -10 * px, 6 * px, 5 * px);
     g.fill({ color: skin });
+    // Eyes
     g.rect(-2 * px, -8 * px, 1 * px, 1 * px);
     g.fill({ color: 0x111111 });
     g.rect(1 * px, -8 * px, 1 * px, 1 * px);
     g.fill({ color: 0x111111 });
+    // Mouth
     g.rect(-1 * px, -6 * px, 2 * px, 1 * px);
     g.fill({ color: darken(skin, 0.2) });
+
+    // Body/shirt
     g.rect(-4 * px, -5 * px, 8 * px, 6 * px);
     g.fill({ color });
+    // Collar detail
     g.rect(-2 * px, -5 * px, 4 * px, 1 * px);
     g.fill({ color: darken(color, 0.15) });
+
+    // Arms
     g.rect(-5 * px, -4 * px, 1 * px, 5 * px);
     g.fill({ color: darken(color, 0.1) });
     g.rect(-5 * px, 1 * px, 1 * px, 1 * px);
@@ -203,25 +212,32 @@ export class AgentSprite {
     g.fill({ color: darken(color, 0.1) });
     g.rect(4 * px, 1 * px, 1 * px, 1 * px);
     g.fill({ color: skin });
+
+    // Pants
     g.rect(-3 * px, 1 * px, 3 * px, 4 * px);
-    g.fill({ color: 0x222233 });
+    g.fill({ color: 0x1a1a30 });
     g.rect(0, 1 * px, 3 * px, 4 * px);
-    g.fill({ color: 0x2a2a3a });
+    g.fill({ color: 0x20203a });
+
+    // Shoes
     g.rect(-4 * px, 5 * px, 3 * px, 1 * px);
-    g.fill({ color: 0x1a1a1a });
+    g.fill({ color: 0x111120 });
     g.rect(1 * px, 5 * px, 3 * px, 1 * px);
-    g.fill({ color: 0x1a1a1a });
+    g.fill({ color: 0x111120 });
   }
 
   private drawStatusBubble(g: Graphics, status: string, color: number) {
     g.clear();
-    g.roundRect(-12, -32, 24, 14, 3);
-    g.fill({ color: 0x1a1a2a, alpha: 0.9 });
+    // Rounded bubble
+    g.roundRect(-14, -42, 28, 16, 4);
+    g.fill({ color: 0x0e0e22, alpha: 0.92 });
     g.stroke({ color, width: 1, alpha: 0.6 });
-    g.circle(0, -19, 2);
-    g.fill({ color: 0x1a1a2a, alpha: 0.8 });
-    g.circle(2, -16, 1);
-    g.fill({ color: 0x1a1a2a, alpha: 0.6 });
+    // Pointer dots
+    g.circle(0, -26, 2.5);
+    g.fill({ color: 0x0e0e22, alpha: 0.85 });
+    g.stroke({ color, width: 0.5, alpha: 0.4 });
+    g.circle(2, -22, 1.5);
+    g.fill({ color: 0x0e0e22, alpha: 0.7 });
   }
 
   private setPositionFromRoom(room: string, seat: number) {
@@ -234,14 +250,14 @@ export class AgentSprite {
   }
 
   update(data: AgentData) {
-    // Only update target when room/seat actually changes (event-driven movement)
+    // Only update target when room/seat changes
     if (data.position_room !== this.lastRoom || data.position_seat !== this.lastSeat) {
       this.setPositionFromRoom(data.position_room, data.position_seat);
       this.lastRoom = data.position_room;
       this.lastSeat = data.position_seat;
     }
 
-    // Smooth walk to target (only moves when target changes)
+    // Smooth walk to target
     const dx = this.targetX - this.currentX;
     const dy = this.targetY - this.currentY;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -259,7 +275,7 @@ export class AgentSprite {
     this.pulseOffset += 0.03;
     const isActive = data.status !== 'idle';
 
-    // Subtle breathing when working (no jumping)
+    // Walk bob
     let bob = 0;
     if (isWalking) {
       bob = Math.round(Math.abs(Math.sin(this.pulseOffset * 6)) * 2);
@@ -271,17 +287,20 @@ export class AgentSprite {
 
     // Shadow
     this.shadow.clear();
-    this.shadow.ellipse(0, 8, 7, 3);
-    this.shadow.fill({ color: 0x000000, alpha: 0.25 });
+    this.shadow.ellipse(0, 10, 9, 4);
+    this.shadow.fill({ color: 0x000000, alpha: 0.3 });
 
-    // Status glow ring (only when actively working)
+    // Status glow ring
     const glowColor = STATUS_GLOW[data.status];
     if (glowColor && isActive) {
       this.glow.visible = true;
       this.glow.clear();
-      const pulse = 0.15 + Math.sin(this.pulseOffset * 2) * 0.08;
-      this.glow.ellipse(0, 8, 10, 4);
-      this.glow.stroke({ color: glowColor, width: 1.5, alpha: pulse });
+      const pulse = 0.2 + Math.sin(this.pulseOffset * 2) * 0.1;
+      // Larger, softer glow ring
+      this.glow.ellipse(0, 10, 14, 6);
+      this.glow.stroke({ color: glowColor, width: 2, alpha: pulse });
+      this.glow.ellipse(0, 10, 18, 8);
+      this.glow.fill({ color: glowColor, alpha: pulse * 0.15 });
 
       this.statusBubble.visible = true;
       this.drawStatusBubble(this.statusBubble, data.status, glowColor);
@@ -307,4 +326,8 @@ function darken(color: number, amount: number): number {
   const g = Math.max(0, ((color >> 8) & 0xff) * (1 - amount));
   const b = Math.max(0, (color & 0xff) * (1 - amount));
   return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+}
+
+function rgbToHex(color: number): string {
+  return '#' + color.toString(16).padStart(6, '0');
 }

@@ -41,11 +41,15 @@ export function createApiRouter(orchestrator: Orchestrator): Router {
     try {
       // Auto-start session if none exists
       if (!orchestrator.sessionId) {
+        console.log('[API] No session — creating one...');
         orchestrator.start();
       }
+      console.log(`[API] Launching sprint with goal: "${goal}"`);
       await orchestrator.launchSprint(goal);
+      console.log('[API] Sprint launched successfully');
       res.json({ success: true });
     } catch (err: any) {
+      console.error(`[API] Goal failed: ${err.message}`);
       res.status(500).json({ error: err.message });
     }
   });

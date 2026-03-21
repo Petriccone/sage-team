@@ -56,11 +56,15 @@ export async function createServer(orchestrator: Orchestrator, port: number): Pr
   const wss = new WebSocketServer({ server });
 
   wss.on('connection', (ws: WebSocket) => {
+    const agents = orchestrator.getAgents();
+    const tasks = orchestrator.getTasks();
+    console.log(`[WS] Client connected — sending ${agents.length} agents, ${tasks.length} tasks`);
+
     // Send current state snapshot
     ws.send(JSON.stringify({
       type: 'snapshot',
-      agents: orchestrator.getAgents(),
-      tasks: orchestrator.getTasks(),
+      agents,
+      tasks,
       prs: orchestrator.getPendingPRs(),
       sprint: orchestrator.getSprint(),
     }));

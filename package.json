@@ -9,7 +9,7 @@
     "sage-team-mcp": "dist/mcp/server.js"
   },
   "scripts": {
-    "build": "tsc && cd src/web && npm run build",
+    "build": "tsc && cd src/web && npm run build && cd ../.. && node -e \"require('fs').cpSync('src/web/dist','dist/web/dist',{recursive:true})\"",
     "build:web": "cd src/web && npm run build",
     "dev": "ts-node src/cli/index.ts",
     "start": "node dist/cli/index.js",
@@ -60,7 +60,6 @@
   },
   "files": [
     "dist",
-    "src/web/dist",
     "README.md",
     "LICENSE"
   ]

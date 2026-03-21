@@ -235,6 +235,8 @@ export function useWebSocket() {
         case 'task:completed': {
           const taskId = data.taskId || event.taskId;
           updateTask(taskId, { status: 'done' });
+          // Agent is done — reset to idle immediately
+          updateAgent(agentId, { status: 'idle', current_task_id: null });
 
           const tasks = useStore.getState().tasks;
           const task = tasks.find(t => t.id === taskId);
@@ -265,6 +267,8 @@ export function useWebSocket() {
         }
 
         case 'task:failed':
+          // Agent is done — reset to idle immediately
+          updateAgent(agentId, { status: 'idle', current_task_id: null });
           pushActivity({
             agentId,
             icon: '\u274C',

@@ -92,12 +92,18 @@ export class Orchestrator extends EventEmitter {
     this.dispatcher.on('task-complete', ({ agentId, taskId, cost, duration, turns, result }) => {
       this.handleTaskComplete(taskId, agentId);
       this.emitEvent('task:completed', agentId, { taskId, cost, duration, turns, result });
+      // Reset agent to idle — task is done
+      this.agents.updateStatus(agentId, 'idle');
+      this.emitEvent('agent:status', agentId, { status: 'idle' });
     });
 
     this.dispatcher.on('agent-failed', ({ agentId, taskId, exitCode, stderr }) => {
       this.tasks.updateStatus(taskId, 'failed');
       this.agents.clearTask(agentId);
       this.emitEvent('task:failed', agentId, { taskId, exitCode, stderr: stderr || '' });
+      // Reset agent to idle — task failed
+      this.agents.updateStatus(agentId, 'idle');
+      this.emitEvent('agent:status', agentId, { status: 'idle' });
     });
 
     this.dispatcher.on('slot-freed', () => {

@@ -70,7 +70,8 @@ export async function createServer(orchestrator: Orchestrator, port: number): Pr
       try {
         const msg = JSON.parse(data.toString());
         if (msg.type === 'goal:submit' && msg.goal) {
-          await orchestrator.submitGoal(msg.goal);
+          if (!orchestrator.sessionId) orchestrator.start();
+          await orchestrator.launchSprint(msg.goal);
         } else if (msg.type === 'pr:approve' && msg.prId) {
           await orchestrator.approvePR(msg.prId);
         } else if (msg.type === 'pr:reject' && msg.prId) {

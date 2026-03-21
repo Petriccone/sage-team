@@ -21,8 +21,7 @@ export function createApiRouter(orchestrator: Orchestrator): Router {
   });
 
   router.get('/sprint', (_req, res) => {
-    // Return active sprint if available
-    res.json({ sprint: null }); // TODO: expose sprint from orchestrator
+    res.json({ sprint: orchestrator.getSprint() });
   });
 
   router.get('/prs', (_req, res) => {
@@ -40,7 +39,11 @@ export function createApiRouter(orchestrator: Orchestrator): Router {
       return;
     }
     try {
-      await orchestrator.submitGoal(goal);
+      // Auto-start session if none exists
+      if (!orchestrator.sessionId) {
+        orchestrator.start();
+      }
+      await orchestrator.launchSprint(goal);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

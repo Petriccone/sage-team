@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import './AgentDetail.css';
 
@@ -35,6 +36,16 @@ export function AgentDetail() {
   const tasks = useStore(s => s.tasks);
   const activity = useStore(s => s.activity);
   const setSelectedAgent = useStore(s => s.setSelectedAgent);
+
+  const activityLogRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll activity log to bottom
+  useEffect(() => {
+    const el = activityLogRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [activity.length, selectedAgent]);
 
   if (!selectedAgent) return null;
 
@@ -114,7 +125,7 @@ export function AgentDetail() {
         {/* Activity log */}
         <div className="agent-detail-section agent-activity-section">
           <div className="section-label">Activity Log</div>
-          <div className="agent-activity-log">
+          <div className="agent-activity-log" ref={activityLogRef}>
             {agentActivity.length === 0 && (
               <div className="agent-activity-empty">No activity yet</div>
             )}

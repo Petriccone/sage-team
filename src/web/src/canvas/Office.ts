@@ -12,6 +12,7 @@ export class Office {
   world: Container;
   agentSprites: Map<string, AgentSprite> = new Map();
   private initialized = false;
+  onAgentClick?: (agentId: string) => void;
 
   constructor() {
     this.app = new Application();
@@ -580,6 +581,7 @@ export class Office {
       let sprite = this.agentSprites.get(agentData.id);
       if (!sprite) {
         sprite = new AgentSprite(agentData);
+        sprite.onClick = this.onAgentClick;
         this.agentSprites.set(agentData.id, sprite);
         this.world.addChild(sprite.container);
       }

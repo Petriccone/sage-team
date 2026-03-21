@@ -18,6 +18,12 @@ export function usePixiOffice(canvasId: string) {
     officeRef.current = office;
     effectsRef.current = effects;
 
+    // Wire up agent click → open detail panel
+    office.onAgentClick = (agentId: string) => {
+      const current = useStore.getState().selectedAgent;
+      useStore.getState().setSelectedAgent(current === agentId ? null : agentId);
+    };
+
     office.init(canvas).then(() => {
       office.world.addChild(effects.container);
 

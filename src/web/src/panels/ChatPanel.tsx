@@ -23,10 +23,21 @@ export function ChatPanel() {
   const tasks = useStore((s) => s.tasks);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll to bottom when new activity arrives
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = bottomRef.current?.parentElement;
+    if (el) {
+      // Only auto-scroll if user is near the bottom (within 120px)
+      const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+      if (isNearBottom || activity.length <= 5) {
+        requestAnimationFrame(() => {
+          bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        });
+      }
+    }
   }, [activity.length]);
 
+  const setSelectedAgent = useStore((s) => s.setSelectedAgent);
   const activeAgents = agents.filter(a => a.status !== 'idle');
   const completedTasks = tasks.filter(t => t.status === 'done' || t.status === 'completed').length;
   const totalTasks = tasks.length;
@@ -46,7 +57,12 @@ export function ChatPanel() {
       {activeAgents.length > 0 && (
         <div className="active-agents-strip">
           {activeAgents.map(a => (
-            <div key={a.id} className="active-agent-chip" style={{ borderColor: AGENT_COLOR[a.id] || '#444' }}>
+            <div
+              key={a.id}
+              className="active-agent-chip"
+              style={{ borderColor: AGENT_COLOR[a.id] || '#444', cursor: 'pointer' }}
+              onClick={() => setSelectedAgent(a.id)}
+            >
               <span className="agent-dot" style={{ background: AGENT_COLOR[a.id] || '#888' }} />
               <span className="agent-chip-name">{a.id}</span>
               <span className="agent-chip-status">{a.status}</span>

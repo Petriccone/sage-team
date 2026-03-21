@@ -58,6 +58,7 @@ export class AgentSprite {
   private statusLabel: Text;
   private shadow: Graphics;
   private statusDot: Graphics;
+  private hitArea: Graphics;
   private pulseOffset = Math.random() * Math.PI * 2;
   private targetX = 0;
   private targetY = 0;
@@ -66,10 +67,27 @@ export class AgentSprite {
   private lastStatus = '';
   private lastRoom = '';
   private lastSeat = -1;
+  readonly agentId: string;
+  onClick?: (agentId: string) => void;
 
   constructor(data: AgentData) {
+    this.agentId = data.id;
     this.container = new Container();
     this.container.sortableChildren = true;
+
+    // Make clickable — interactive hit area
+    this.container.eventMode = 'static';
+    this.container.cursor = 'pointer';
+    this.container.on('pointertap', () => {
+      if (this.onClick) this.onClick(this.agentId);
+    });
+
+    // Invisible hit area for easier clicking
+    this.hitArea = new Graphics();
+    this.hitArea.rect(-18, -40, 36, 70);
+    this.hitArea.fill({ color: 0xffffff, alpha: 0.001 });
+    this.hitArea.zIndex = 10;
+    this.container.addChild(this.hitArea);
 
     const color = AGENT_COLORS[data.id] || 0xcccccc;
 

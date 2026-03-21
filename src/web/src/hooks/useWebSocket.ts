@@ -117,8 +117,32 @@ export function useWebSocket() {
       const data = event.data || {};
 
       switch (evType) {
-        case 'snapshot':
-          if (event.agents) setAgents(event.agents);
+        case 'snapshot': {
+          // Load agents at the building entrance first, then walk to desks
+          if (event.agents) {
+            // Place all agents at entrance (lounge area) initially
+            const arrivals = event.agents.map((a: any) => ({
+              ...a,
+              position_room: 'lounge',
+              position_seat: 0,
+            }));
+            setAgents(arrivals);
+
+            // Stagger each agent walking to their home desk
+            const agents = event.agents as any[];
+            for (let i = 0; i < agents.length; i++) {
+              const agent = agents[i];
+              const home = AGENT_HOME[agent.id];
+              if (home) {
+                setTimeout(() => {
+                  updateAgent(agent.id, {
+                    position_room: home.room,
+                    position_seat: home.seat,
+                  });
+                }, 800 + i * 400); // Staggered arrival
+              }
+            }
+          }
           if (event.tasks) setTasks(event.tasks);
           if (event.prs) setPRs(event.prs);
           if (event.sprint) useStore.setState({ sprint: event.sprint });
@@ -129,6 +153,7 @@ export function useWebSocket() {
             type: 'system',
           });
           break;
+        }
 
         case 'agent:status': {
           const status = data.status || event.status;

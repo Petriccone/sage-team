@@ -2,11 +2,11 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { toScreen } from './iso';
 import { getSeatPosition } from './rooms';
 
-// Agent outfit accent colors (neon-tinted)
+// Agent outfit colors — bright, clearly visible on warm floors
 const AGENT_COLORS: Record<string, number> = {
-  sage: 0xffd700, nova: 0x00e5ff, aria: 0xd17efc, dex: 0x00ff88,
-  flux: 0x4d8aff, quinn: 0xff9b33, gage: 0x20c9a0, morgan: 0xff69b4,
-  uma: 0xa855f7, river: 0x00e5d0, atlas: 0x94a3b8,
+  sage: 0xffd700, nova: 0x00bfff, aria: 0xb57edc, dex: 0x50c878,
+  flux: 0x4169e1, quinn: 0xff8c00, gage: 0x20b2aa, morgan: 0xff69b4,
+  uma: 0x8a2be2, river: 0x00ced1, atlas: 0x708090,
 };
 
 // Skin tones
@@ -33,11 +33,11 @@ const HAIR_STYLE: Record<string, number> = {
 const STATUS_GLOW: Record<string, number> = {
   coding: 0x00ff88,
   reviewing: 0x00bfff,
-  testing: 0xa855f7,
+  testing: 0x9b59b6,
   planning: 0xffd700,
-  blocked: 0xff3355,
+  blocked: 0xff4444,
   deploying: 0xff6b35,
-  thinking: 0x888888,
+  thinking: 0xcccccc,
 };
 
 export interface AgentData {
@@ -48,7 +48,7 @@ export interface AgentData {
   position_seat: number;
 }
 
-/** Premium pixel art agent sprite */
+/** Pixel art agent — Gather.town style character */
 export class AgentSprite {
   container: Container;
   private body: Graphics;
@@ -57,6 +57,7 @@ export class AgentSprite {
   private label: Text;
   private statusLabel: Text;
   private shadow: Graphics;
+  private statusDot: Graphics;
   private pulseOffset = Math.random() * Math.PI * 2;
   private targetX = 0;
   private targetY = 0;
@@ -83,7 +84,7 @@ export class AgentSprite {
     this.glow.visible = false;
     this.container.addChild(this.glow);
 
-    // Pixel art body — larger (px=3)
+    // Pixel art body (px=3 for visible characters)
     this.body = new Graphics();
     this.drawPixelPerson(this.body, data.id);
     this.body.zIndex = 2;
@@ -95,7 +96,13 @@ export class AgentSprite {
     this.statusBubble.visible = false;
     this.container.addChild(this.statusBubble);
 
-    // Name label — readable with glow
+    // Status dot (colored indicator next to name, like Gather.town)
+    this.statusDot = new Graphics();
+    this.statusDot.zIndex = 5;
+    this.statusDot.visible = false;
+    this.container.addChild(this.statusDot);
+
+    // Name label — clean white, like the reference
     this.label = new Text({
       text: data.name,
       style: new TextStyle({
@@ -104,7 +111,7 @@ export class AgentSprite {
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
         letterSpacing: 0.5,
-        dropShadow: { color: rgbToHex(color), blur: 6, distance: 0, alpha: 0.7 },
+        dropShadow: { color: '#000000', blur: 3, distance: 1, alpha: 0.9 },
         stroke: { color: '#000000', width: 2.5 },
       }),
     });
@@ -118,10 +125,10 @@ export class AgentSprite {
       text: '',
       style: new TextStyle({
         fontSize: 8,
-        fill: 0x999999,
+        fill: 0xcccccc,
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '400',
-        dropShadow: { color: '#000000', blur: 4, distance: 0, alpha: 1 },
+        dropShadow: { color: '#000000', blur: 3, distance: 1, alpha: 0.9 },
         stroke: { color: '#000000', width: 1.5 },
       }),
     });
@@ -146,15 +153,15 @@ export class AgentSprite {
     const skin = SKIN_TONES[agentId] || 0xf5d6b8;
     const hair = HAIR_COLORS[agentId] || 0x2a2a2a;
     const hairStyle = HAIR_STYLE[agentId] || 0;
-    const px = 3; // Larger pixel size for premium look
+    const px = 3;
 
     // Hair
     switch (hairStyle) {
-      case 0: // Short
+      case 0:
         g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
         g.fill({ color: hair });
         break;
-      case 1: // Medium
+      case 1:
         g.rect(-3 * px, -12 * px, 6 * px, 4 * px);
         g.fill({ color: hair });
         g.rect(-4 * px, -11 * px, 1 * px, 4 * px);
@@ -162,7 +169,7 @@ export class AgentSprite {
         g.rect(3 * px, -11 * px, 1 * px, 4 * px);
         g.fill({ color: hair });
         break;
-      case 2: // Long
+      case 2:
         g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
         g.fill({ color: hair });
         g.rect(-4 * px, -11 * px, 1 * px, 7 * px);
@@ -170,13 +177,13 @@ export class AgentSprite {
         g.rect(3 * px, -11 * px, 1 * px, 7 * px);
         g.fill({ color: hair });
         break;
-      case 3: // Mohawk
+      case 3:
         g.rect(-1 * px, -14 * px, 2 * px, 2 * px);
         g.fill({ color: hair });
         g.rect(-2 * px, -12 * px, 4 * px, 2 * px);
         g.fill({ color: hair });
         break;
-      case 4: // Bun
+      case 4:
         g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
         g.fill({ color: hair });
         g.rect(-1 * px, -14 * px, 2 * px, 2 * px);
@@ -199,7 +206,6 @@ export class AgentSprite {
     // Body/shirt
     g.rect(-4 * px, -5 * px, 8 * px, 6 * px);
     g.fill({ color });
-    // Collar detail
     g.rect(-2 * px, -5 * px, 4 * px, 1 * px);
     g.fill({ color: darken(color, 0.15) });
 
@@ -215,29 +221,27 @@ export class AgentSprite {
 
     // Pants
     g.rect(-3 * px, 1 * px, 3 * px, 4 * px);
-    g.fill({ color: 0x1a1a30 });
+    g.fill({ color: 0x222233 });
     g.rect(0, 1 * px, 3 * px, 4 * px);
-    g.fill({ color: 0x20203a });
+    g.fill({ color: 0x2a2a3a });
 
     // Shoes
     g.rect(-4 * px, 5 * px, 3 * px, 1 * px);
-    g.fill({ color: 0x111120 });
+    g.fill({ color: 0x1a1a1a });
     g.rect(1 * px, 5 * px, 3 * px, 1 * px);
-    g.fill({ color: 0x111120 });
+    g.fill({ color: 0x1a1a1a });
   }
 
   private drawStatusBubble(g: Graphics, status: string, color: number) {
     g.clear();
-    // Rounded bubble
     g.roundRect(-14, -42, 28, 16, 4);
-    g.fill({ color: 0x0e0e22, alpha: 0.92 });
-    g.stroke({ color, width: 1, alpha: 0.6 });
-    // Pointer dots
+    g.fill({ color: 0x222233, alpha: 0.9 });
+    g.stroke({ color: 0x555566, width: 1 });
+    // Pointer
     g.circle(0, -26, 2.5);
-    g.fill({ color: 0x0e0e22, alpha: 0.85 });
-    g.stroke({ color, width: 0.5, alpha: 0.4 });
+    g.fill({ color: 0x222233, alpha: 0.85 });
     g.circle(2, -22, 1.5);
-    g.fill({ color: 0x0e0e22, alpha: 0.7 });
+    g.fill({ color: 0x222233, alpha: 0.7 });
   }
 
   private setPositionFromRoom(room: string, seat: number) {
@@ -288,31 +292,36 @@ export class AgentSprite {
     // Shadow
     this.shadow.clear();
     this.shadow.ellipse(0, 10, 9, 4);
-    this.shadow.fill({ color: 0x000000, alpha: 0.3 });
+    this.shadow.fill({ color: 0x000000, alpha: 0.25 });
 
-    // Status glow ring
+    // Status glow ring (subtle, under character)
     const glowColor = STATUS_GLOW[data.status];
     if (glowColor && isActive) {
       this.glow.visible = true;
       this.glow.clear();
-      const pulse = 0.2 + Math.sin(this.pulseOffset * 2) * 0.1;
-      // Larger, softer glow ring
-      this.glow.ellipse(0, 10, 14, 6);
-      this.glow.stroke({ color: glowColor, width: 2, alpha: pulse });
-      this.glow.ellipse(0, 10, 18, 8);
-      this.glow.fill({ color: glowColor, alpha: pulse * 0.15 });
+      const pulse = 0.15 + Math.sin(this.pulseOffset * 2) * 0.08;
+      this.glow.ellipse(0, 10, 12, 5);
+      this.glow.stroke({ color: glowColor, width: 1.5, alpha: pulse });
 
       this.statusBubble.visible = true;
       this.drawStatusBubble(this.statusBubble, data.status, glowColor);
+
+      // Status dot next to name
+      this.statusDot.visible = true;
+      this.statusDot.clear();
+      const nameWidth = this.label.width / 2 + 5;
+      this.statusDot.circle(nameWidth, 23, 3);
+      this.statusDot.fill({ color: glowColor });
     } else {
       this.glow.visible = false;
       this.statusBubble.visible = false;
+      this.statusDot.visible = false;
     }
 
     // Status label
     if (isActive && data.status !== this.lastStatus) {
       this.statusLabel.text = data.status;
-      this.statusLabel.style.fill = glowColor || 0x888888;
+      this.statusLabel.style.fill = glowColor || 0xcccccc;
       this.statusLabel.visible = true;
     } else if (!isActive) {
       this.statusLabel.visible = false;
@@ -326,8 +335,4 @@ function darken(color: number, amount: number): number {
   const g = Math.max(0, ((color >> 8) & 0xff) * (1 - amount));
   const b = Math.max(0, (color & 0xff) * (1 - amount));
   return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
-}
-
-function rgbToHex(color: number): string {
-  return '#' + color.toString(16).padStart(6, '0');
 }

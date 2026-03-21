@@ -1,5 +1,5 @@
-// Room layout — Premium neon glass office
-// Dark cyberpunk aesthetic with glowing accent colors
+// Room layout — Gather.town / OpenClaw style warm isometric office
+// Cozy office aesthetic with warm wood tones and solid 3D walls
 
 export interface RoomDef {
   id: string;
@@ -8,14 +8,14 @@ export interface RoomDef {
   row: number;
   w: number;
   h: number;
-  color: string;       // neon accent color
-  floorColor: string;  // dark floor tint
-  wallColor: string;   // glass wall tint
+  color: string;       // accent color (for labels/indicators)
+  floorColor: string;  // warm floor tone
+  wallColor: string;   // solid wall color
   icon: string;
 }
 
 // ── FLOOR PLAN ──────────────────────────────────────────────────
-// 16×11 building — spacious rooms with clean separation
+// 16×11 building — spacious rooms with clear 3D walls
 //
 //  Col: 0   4   8  12  16
 //       ┌───┬───┬───┬───┐
@@ -31,20 +31,20 @@ export interface RoomDef {
 
 export const ROOMS: RoomDef[] = [
   // ── Top Row (Executive) ──
-  { id: 'ceo-office',    label: 'CEO',           col: 0,  row: 0,  w: 4, h: 3, color: '#ffd700', floorColor: '#1e1c28', wallColor: '#2a2838', icon: '\u{1F451}' },
-  { id: 'cto-office',    label: 'CTO',           col: 4,  row: 0,  w: 4, h: 3, color: '#00e5ff', floorColor: '#1a1e28', wallColor: '#282a38', icon: '\u{1F52C}' },
-  { id: 'arch-lab',      label: 'Architecture',  col: 8,  row: 0,  w: 4, h: 3, color: '#d17efc', floorColor: '#221c28', wallColor: '#302838', icon: '\u{1F3DB}\uFE0F' },
-  { id: 'meeting-room',  label: 'Meeting',       col: 12, row: 0,  w: 4, h: 3, color: '#4d8aff', floorColor: '#1a1c2a', wallColor: '#28283a', icon: '\u{1F91D}' },
+  { id: 'ceo-office',    label: 'CEO Office',    col: 0,  row: 0,  w: 4, h: 3, color: '#ffd700', floorColor: '#c4b08c', wallColor: '#6e6e80', icon: '\u{1F451}' },
+  { id: 'cto-office',    label: 'CTO Office',    col: 4,  row: 0,  w: 4, h: 3, color: '#00bfff', floorColor: '#b8a888', wallColor: '#6a6a7c', icon: '\u{1F52C}' },
+  { id: 'arch-lab',      label: 'Arch Lab',      col: 8,  row: 0,  w: 4, h: 3, color: '#b57edc', floorColor: '#bca890', wallColor: '#6c6c7e', icon: '\u{1F3DB}\uFE0F' },
+  { id: 'meeting-room',  label: 'Meeting Room',  col: 12, row: 0,  w: 4, h: 3, color: '#4169e1', floorColor: '#c0a888', wallColor: '#6e6e80', icon: '\u{1F91D}' },
 
   // ── Middle Row (Development) ──
-  { id: 'dev-bullpen',   label: 'Development',   col: 0,  row: 3,  w: 8, h: 4, color: '#00ff88', floorColor: '#161e1a', wallColor: '#1e2e22', icon: '\u26A1' },
-  { id: 'qa-lab',        label: 'QA Lab',        col: 8,  row: 3,  w: 4, h: 4, color: '#ff9b33', floorColor: '#1e1a16', wallColor: '#2e2618', icon: '\u{1F50D}' },
-  { id: 'design-studio', label: 'Design',        col: 12, row: 3,  w: 4, h: 4, color: '#a855f7', floorColor: '#1e1828', wallColor: '#2e2038', icon: '\u{1F3A8}' },
+  { id: 'dev-bullpen',   label: 'Dev Bullpen',   col: 0,  row: 3,  w: 8, h: 4, color: '#50c878', floorColor: '#b8a480', wallColor: '#686878', icon: '\u26A1' },
+  { id: 'qa-lab',        label: 'QA Lab',        col: 8,  row: 3,  w: 4, h: 4, color: '#ff8c00', floorColor: '#c0a480', wallColor: '#6a6a7a', icon: '\u{1F50D}' },
+  { id: 'design-studio', label: 'Design Studio', col: 12, row: 3,  w: 4, h: 4, color: '#8a2be2', floorColor: '#bca488', wallColor: '#6c6c7c', icon: '\u{1F3A8}' },
 
   // ── Bottom Row (Support) ──
-  { id: 'data-lab',      label: 'Data Lab',      col: 0,  row: 7,  w: 4, h: 4, color: '#94a3b8', floorColor: '#1a1c20', wallColor: '#282c32', icon: '\u{1F4CA}' },
-  { id: 'crisis-room',   label: 'War Room',      col: 4,  row: 7,  w: 4, h: 4, color: '#ff3355', floorColor: '#201416', wallColor: '#341c1e', icon: '\u{1F6A8}' },
-  { id: 'lounge',        label: 'Lounge',        col: 8,  row: 7,  w: 8, h: 4, color: '#ff7b54', floorColor: '#1e1a16', wallColor: '#2e2418', icon: '\u2615' },
+  { id: 'data-lab',      label: 'Data Lab',      col: 0,  row: 7,  w: 4, h: 4, color: '#708090', floorColor: '#b0a088', wallColor: '#686878', icon: '\u{1F4CA}' },
+  { id: 'crisis-room',   label: 'War Room',      col: 4,  row: 7,  w: 4, h: 4, color: '#dc143c', floorColor: '#b8a080', wallColor: '#6a6a7a', icon: '\u{1F6A8}' },
+  { id: 'lounge',        label: 'Lounge',        col: 8,  row: 7,  w: 8, h: 4, color: '#ff6347', floorColor: '#c8b090', wallColor: '#6c6c7c', icon: '\u2615' },
 ];
 
 // ── BUILDING BOUNDS ──
@@ -125,7 +125,7 @@ export const MEETING_SEATS: Record<string, number> = {
   quinn: 5, gage: 6, morgan: 7, uma: 8, river: 9, atlas: 10,
 };
 
-/** Furniture positions — minimal, premium placement */
+/** Furniture positions — clean, visible placement */
 export interface FurnitureDef {
   room: string;
   type: 'desk' | 'monitor' | 'chair' | 'table' | 'plant' | 'shelf' | 'server' | 'whiteboard' | 'couch' | 'coffee' | 'rug';
@@ -134,13 +134,13 @@ export interface FurnitureDef {
 }
 
 export const FURNITURE: FurnitureDef[] = [
-  // CEO Office — executive, clean
+  // CEO Office
   { room: 'ceo-office', type: 'desk', col: 1.5, row: 1 },
   { room: 'ceo-office', type: 'monitor', col: 1.8, row: 0.7 },
   { room: 'ceo-office', type: 'plant', col: 0.5, row: 0.4 },
   { room: 'ceo-office', type: 'shelf', col: 3.2, row: 0.4 },
 
-  // CTO Office — tech-focused
+  // CTO Office
   { room: 'cto-office', type: 'desk', col: 5.5, row: 1 },
   { room: 'cto-office', type: 'monitor', col: 5.8, row: 0.7 },
   { room: 'cto-office', type: 'monitor', col: 6.4, row: 0.7 },
@@ -172,18 +172,18 @@ export const FURNITURE: FurnitureDef[] = [
   { room: 'design-studio', type: 'monitor', col: 13.3, row: 4.2 },
   { room: 'design-studio', type: 'whiteboard', col: 15, row: 3.5 },
 
-  // Data Lab — server heavy
+  // Data Lab
   { room: 'data-lab', type: 'desk', col: 1.5, row: 8.5 },
   { room: 'data-lab', type: 'monitor', col: 1.8, row: 8.2 },
   { room: 'data-lab', type: 'server', col: 3, row: 7.5 },
   { room: 'data-lab', type: 'server', col: 3.5, row: 7.5 },
 
-  // Crisis Room — command center
+  // Crisis Room
   { room: 'crisis-room', type: 'table', col: 6, row: 8.5 },
   { room: 'crisis-room', type: 'monitor', col: 5, row: 7.5 },
   { room: 'crisis-room', type: 'monitor', col: 7, row: 7.5 },
 
-  // Lounge — relaxed
+  // Lounge
   { room: 'lounge', type: 'couch', col: 10, row: 8.5 },
   { room: 'lounge', type: 'couch', col: 14, row: 8.5 },
   { room: 'lounge', type: 'coffee', col: 12, row: 9 },

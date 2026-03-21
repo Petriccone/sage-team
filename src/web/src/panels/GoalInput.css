@@ -6,6 +6,14 @@
   background: #111118;
   border-top: 1px solid #222;
   flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.goal-error {
+  width: 100%;
+  color: #ff4444;
+  font-size: 0.75rem;
+  padding: 4px 0;
 }
 
 .pr-badges {

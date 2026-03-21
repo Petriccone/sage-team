@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store';
+import { AGENT_HOME } from '../canvas/rooms';
 
 const AGENT_EMOJI: Record<string, string> = {
   sage: '\u{1F451}', nova: '\u{1F52C}', aria: '\u{1F3DB}\uFE0F', dex: '\u26A1',
@@ -181,6 +182,15 @@ export function useWebSocket() {
           const taskId = data.taskId || event.taskId;
           updateTask(taskId, { assigned_to: agentId, status: 'in_progress' });
           updateAgent(agentId, { current_task_id: taskId, status: 'coding' });
+
+          // Move agent to their home/work room when assigned a task
+          const home = AGENT_HOME[agentId];
+          if (home) {
+            updateAgent(agentId, {
+              position_room: home.room,
+              position_seat: home.seat,
+            });
+          }
 
           // Find the task title from store
           const tasks = useStore.getState().tasks;

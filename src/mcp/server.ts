@@ -43,19 +43,13 @@ function autoInit(): void {
   // Auto-detect: use sandbox (git worktrees) if git available, otherwise direct
   const isGitRepo = hasGit();
 
-  const config = {
+  const config: Record<string, any> = {
     companyName: 'Sage Team',
     mission: 'Build amazing software autonomously',
     model: 'claude-sonnet-4-20250514',
     maxConcurrentAgents: 3,
     autonomyMode: isGitRepo ? 'sandbox' : 'direct',
-    apiKey: '',
   };
-
-  // Grab API key from any available source
-  if (process.env.ANTHROPIC_API_KEY) {
-    config.apiKey = process.env.ANTHROPIC_API_KEY;
-  }
 
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
@@ -80,10 +74,8 @@ function ensureOrchestrator(): Orchestrator {
 
   const config = loadConfig()!;
 
-  // API key: config > env var > empty string
-  // When empty, Anthropic SDK will try env var automatically
-  // Only fails when actually calling the API, not at setup
-  const apiKey = config.apiKey || process.env.ANTHROPIC_API_KEY || '';
+  // API key: env var only — no apiKey in config (plug-and-play via Claude Code)
+  const apiKey = process.env.ANTHROPIC_API_KEY || '';
 
   const dbPath = path.join(process.cwd(), '.sage-team', 'state.db');
   db = new Database(dbPath);
@@ -102,7 +94,7 @@ function ensureOrchestrator(): Orchestrator {
 // ── MCP Server ───────────────────────────────────────────────────────
 const server = new McpServer({
   name: 'sage-team',
-  version: '3.4.6',
+  version: '3.6.0',
 });
 
 // ── Tool: init ───────────────────────────────────────────────────────
@@ -179,32 +171,54 @@ server.tool(
       ]) as any;
 
       if (response.type === 'ready') {
-        // Sage is ready — launch the sprint!
+        // Sage is ready — call a team meeting, then launch the sprint
         const lines: string[] = [];
         lines.push(`👑 **Sage:** ${response.message}`);
         lines.push('');
-        lines.push('🤝 *Sage called a team meeting to discuss the plan...*');
+        lines.push('---');
+        lines.push('');
+        lines.push('🤝 **TEAM MEETING — Sage Team HQ**');
+        lines.push('');
+        lines.push('*Sage gathers the team in the meeting room...*');
+        lines.push('');
+
+        // Show team meeting narrative with relevant agents
+        const meetingNarrative = [
+          { emoji: '🔬', name: 'Nova (CTO)', note: 'Reviewing technical requirements and defining the architecture...' },
+          { emoji: '🏛️', name: 'Aria (Architect)', note: 'Planning the system structure and component layout...' },
+          { emoji: '⚡', name: 'Dex (Senior Dev)', note: 'Estimating implementation effort and identifying core modules...' },
+          { emoji: '🎨', name: 'Uma (Designer)', note: 'Considering UI/UX approach and visual direction...' },
+          { emoji: '🔍', name: 'Quinn (QA)', note: 'Planning test strategy and quality checkpoints...' },
+          { emoji: '📊', name: 'Morgan (PM)', note: 'Organizing priorities and task dependencies...' },
+        ];
+        for (const agent of meetingNarrative) {
+          lines.push(`  ${agent.emoji} **${agent.name}:** ${agent.note}`);
+        }
+        lines.push('');
+        lines.push('*Team reaches consensus. Sage assigns tasks...*');
         lines.push('');
 
         // Launch sprint with the conversation context
         try {
           await Promise.race([
             orch.launchSprint(response.summary || message),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 30000)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 180000)),
           ]);
 
           const tasks = orch.getTasks();
-          lines.push(`✅ Sprint created with ${tasks.length} tasks:\n`);
+          lines.push(`✅ **Sprint created — ${tasks.length} tasks assigned:**`);
+          lines.push('');
           for (const t of tasks) {
             const persona = PERSONAS.find(p => p.id === t.assignee_id);
             lines.push(`  ${persona?.emoji || '•'} **${persona?.name || t.assignee_id}** → ${t.title}`);
           }
           lines.push('');
           lines.push(`🏢 Watch the team at http://localhost:${officePort}`);
-          lines.push('Agents are working! Use sage_team_status to check progress.');
+          lines.push('');
+          lines.push('*The team heads to their workstations. Use sage_team_status to check progress.*');
         } catch (err: any) {
           if (err.message === 'TIMEOUT') {
-            lines.push('Still planning... Use sage_team_status to check progress.');
+            lines.push('⏳ Team is still planning... Use sage_team_status to check progress.');
           } else {
             lines.push(`❌ Sprint creation failed: ${err.message}`);
           }
@@ -212,7 +226,7 @@ server.tool(
 
         return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
       } else {
-        // Sage has questions
+        // Sage is asking questions — conversational phase
         const lines: string[] = [];
         lines.push(`👑 **Sage:** ${response.message}`);
 
@@ -224,7 +238,7 @@ server.tool(
         }
 
         lines.push('');
-        lines.push('*Reply with sage_team_chat to continue the conversation.*');
+        lines.push('*Reply with sage_team_chat to continue the conversation with Sage.*');
 
         return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
       }
@@ -237,73 +251,56 @@ server.tool(
 // ── Tool: start ──────────────────────────────────────────────────────
 server.tool(
   'sage_team_start',
-  'Start a Sage Team session and immediately begin working on a goal. Skips the conversational flow — use sage_team_chat instead for a step-by-step discussion with Sage (CEO) before starting.',
+  'Start a Sage Team session. Sage (CEO) will ask you clarifying questions first, then call a team meeting, then assign tasks. This is the recommended entry point.',
   {
-    goal: z.string().describe('The goal for the team (e.g. "Build a REST API for a todo app")'),
+    goal: z.string().describe('Describe what you want to build (e.g. "Build a REST API for a todo app")'),
     port: z.number().optional().describe('Port for the office UI (default: 3000)'),
     no_browser: z.boolean().optional().describe('Skip opening the browser'),
   },
   async ({ goal, port, no_browser }) => {
     try {
       const orch = ensureOrchestrator();
-      const session = orch.start();
       officePort = port || 3000;
 
-      const lines: string[] = [];
-      lines.push(`👑 **Sage:** Got it — "${goal}". Let me rally the team.`);
-      lines.push('');
+      // Ensure session exists
+      if (!orch.sessionId) {
+        orch.start();
+      }
 
-      // Start the Express + WebSocket server for the office UI
+      // Start office if not running
       if (!httpServer) {
         try {
           const { createServer } = await import('../server/index');
           httpServer = await createServer(orch, officePort);
           const addr = httpServer.address();
-          const actualPort = typeof addr === 'object' && addr ? addr.port : officePort;
-          officePort = actualPort;
-          lines.push(`🏢 Office running at http://localhost:${actualPort}`);
+          officePort = typeof addr === 'object' && addr ? addr.port : officePort;
 
           if (!no_browser) {
-            try {
-              const open = (await import('open')).default;
-              await open(`http://localhost:${actualPort}`);
-              lines.push('🌐 Browser opened.');
-            } catch {
-              lines.push(`🌐 Open in browser: http://localhost:${actualPort}`);
-            }
+            try { const open = (await import('open')).default; await open(`http://localhost:${officePort}`); } catch {}
           }
-        } catch (err: any) {
-          lines.push(`⚠️ Could not start office UI: ${err.message}`);
-        }
-      } else {
-        lines.push(`🏢 Office already running at http://localhost:${officePort}`);
+        } catch {}
       }
 
-      // No API key check needed — CEO Brain uses Claude Code if no key available
+      // Chat with CEO — Sage will ask clarifying questions on first interaction
+      const response = await Promise.race([
+        orch.chatWithCEO(goal),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 180000)),
+      ]) as any;
+
+      const lines: string[] = [];
+      lines.push(`🏢 Office running at http://localhost:${officePort}`);
       lines.push('');
-      lines.push('🤝 *Team meeting in progress...*');
+      lines.push(`👑 **Sage:** ${response.message}`);
 
-      try {
-        await Promise.race([
-          orch.submitGoal(goal),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), 180000)),
-        ]);
-        const tasks = orch.getTasks();
+      if (response.questions && response.questions.length > 0) {
         lines.push('');
-        lines.push(`✅ Sprint planned — ${tasks.length} tasks assigned:\n`);
-        for (const t of tasks) {
-          const persona = PERSONAS.find(p => p.id === t.assignee_id);
-          lines.push(`  ${persona?.emoji || '•'} **${persona?.name || t.assignee_id}** → ${t.title}`);
-        }
-        lines.push('');
-        lines.push('The team is on it. Use sage_team_status to check progress.');
-      } catch (err: any) {
-        if (err.message === 'TIMEOUT') {
-          lines.push('\nStill planning... Use sage_team_status to check progress.');
-        } else {
-          lines.push(`\n❌ Goal decomposition failed: ${err.message}`);
+        for (const q of response.questions) {
+          lines.push(`  → ${q}`);
         }
       }
+
+      lines.push('');
+      lines.push('*Reply with sage_team_chat to continue the conversation with Sage.*');
 
       return { content: [{ type: 'text' as const, text: lines.join('\n') }] };
     } catch (err: any) {
@@ -440,17 +437,14 @@ server.tool(
       checks.push('✅ Claude Code: installed');
     } catch { checks.push('❌ Claude Code: not found'); }
 
-    // API Key
-    const hasEnv = !!process.env.ANTHROPIC_API_KEY;
+    // Mode
     const config = loadConfig();
-    const hasConfig = config && !!config.apiKey;
-    if (hasEnv) checks.push('✅ API Key: set via ANTHROPIC_API_KEY');
-    else if (hasConfig) checks.push('✅ API Key: set in config');
-    else checks.push('⚠️ API Key: not detected (will use Claude Code\'s key if available)');
-
-    // Init
-    if (config) checks.push('✅ Initialized: .sage-team/ exists');
-    else checks.push('ℹ️  Not initialized yet (auto-initializes on first use)');
+    if (config) {
+      checks.push('✅ Initialized: .sage-team/ exists');
+      checks.push(`ℹ️  Mode: ${config.autonomyMode || 'sandbox'} (uses Claude Code — no API key needed)`);
+    } else {
+      checks.push('ℹ️  Not initialized yet (auto-initializes on first use)');
+    }
 
     return { content: [{ type: 'text', text: `# Sage Team Doctor\n\n${checks.join('\n')}` }] };
   },
@@ -508,8 +502,7 @@ server.tool(
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
 
     if (show || (!model && !max_agents && !autonomy && !company_name)) {
-      const display = { ...config };
-      if (display.apiKey) display.apiKey = display.apiKey.slice(0, 10) + '...';
+      const { apiKey, ...display } = config;
       return { content: [{ type: 'text', text: `# Config\n\n\`\`\`json\n${JSON.stringify(display, null, 2)}\n\`\`\`` }] };
     }
 

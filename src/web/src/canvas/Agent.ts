@@ -63,6 +63,7 @@ export class AgentSprite {
   private currentX = 0;
   private currentY = 0;
   private lastStatus = '';
+  private isWalking = false;
 
   constructor(data: AgentData) {
     this.container = new Container();
@@ -93,20 +94,22 @@ export class AgentSprite {
     this.statusBubble.visible = false;
     this.container.addChild(this.statusBubble);
 
-    // Name label (pixel font style)
+    // Name label — clear and readable
     this.label = new Text({
       text: data.name,
       style: new TextStyle({
-        fontSize: 8,
-        fill: color,
+        fontSize: 11,
+        fill: '#ffffff',
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
         letterSpacing: 0.5,
         dropShadow: {
           color: '#000000',
-          blur: 2,
+          blur: 4,
           distance: 1,
+          alpha: 0.9,
         },
+        stroke: { color: '#000000', width: 2.5 },
       }),
     });
     this.label.anchor.set(0.5, 0);
@@ -118,19 +121,21 @@ export class AgentSprite {
     this.statusLabel = new Text({
       text: '',
       style: new TextStyle({
-        fontSize: 7,
-        fill: 0x888888,
+        fontSize: 9,
+        fill: 0xcccccc,
         fontFamily: "'Courier New', 'Consolas', monospace",
-        fontWeight: '400',
+        fontWeight: '700',
         dropShadow: {
           color: '#000000',
-          blur: 2,
+          blur: 4,
           distance: 1,
+          alpha: 0.9,
         },
+        stroke: { color: '#000000', width: 2 },
       }),
     });
     this.statusLabel.anchor.set(0.5, 0);
-    this.statusLabel.y = 23;
+    this.statusLabel.y = 26;
     this.statusLabel.zIndex = 5;
     this.statusLabel.visible = false;
     this.container.addChild(this.statusLabel);
@@ -268,28 +273,42 @@ export class AgentSprite {
     }
   }
 
+  /** Set a free-form target position (for wandering) */
+  setTarget(x: number, y: number) {
+    this.targetX = x;
+    this.targetY = y;
+  }
+
   update(data: AgentData) {
     this.setPositionFromRoom(data.position_room, data.position_seat);
 
-    // Smooth movement
+    // Smooth movement — walk speed scales with distance
     const dx = this.targetX - this.currentX;
     const dy = this.targetY - this.currentY;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
-    if (dist > 1) {
-      const speed = Math.min(dist * 0.08, 3);
+    if (dist > 1.5) {
+      // Walking speed: faster for long distances, ease in near target
+      const speed = dist > 80 ? 3.5 : dist > 30 ? 2.5 : Math.max(dist * 0.1, 0.8);
       this.currentX += (dx / dist) * speed;
       this.currentY += (dy / dist) * speed;
+      this.isWalking = true;
     } else {
       this.currentX = this.targetX;
       this.currentY = this.targetY;
+      this.isWalking = false;
     }
 
     this.bobOffset += 0.04;
     const isActive = data.status !== 'idle';
 
-    // Pixel-snapped bounce (whole pixel steps for retro feel)
-    const bob = isActive ? Math.round(Math.sin(this.bobOffset * 3) * 1.5) : 0;
+    // Walking bob is faster and more pronounced than idle bob
+    let bob = 0;
+    if (this.isWalking) {
+      bob = Math.round(Math.abs(Math.sin(this.bobOffset * 8)) * 3); // Walking bounce
+    } else if (isActive) {
+      bob = Math.round(Math.sin(this.bobOffset * 3) * 1.5); // Idle working bob
+    }
 
     this.container.x = this.currentX;
     this.container.y = this.currentY + bob;

@@ -19,6 +19,7 @@ describe('Dispatcher', () => {
     expect(cmd.args).toContain('--print');
     expect(cmd.args).toContain('--output-format');
     expect(cmd.args).toContain('stream-json');
+    expect(cmd.args).toContain('--verbose');
     expect(cmd.args).toContain('--dangerously-skip-permissions');
     expect(cmd.args).toContain('--max-turns');
     expect(cmd.args).toContain('50');

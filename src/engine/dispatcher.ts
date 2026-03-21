@@ -92,6 +92,7 @@ export class Dispatcher extends EventEmitter {
     const args = [
       '--print',
       '--output-format', 'stream-json',
+      '--verbose',
       '--dangerously-skip-permissions',
       '--system-prompt', input.systemPrompt,
       '--max-turns', String(input.maxTurns),
@@ -223,14 +224,16 @@ export class Dispatcher extends EventEmitter {
       }
     });
 
+    let stderrBuffer = '';
     proc.stderr?.on('data', (chunk: Buffer) => {
+      stderrBuffer += chunk.toString();
       this.emit('agent-error', { agentId, taskId, error: chunk.toString() });
     });
 
     proc.on('exit', (code) => {
       this.running.delete(taskId);
       if (code !== 0) {
-        this.emit('agent-failed', { agentId, taskId, exitCode: code });
+        this.emit('agent-failed', { agentId, taskId, exitCode: code, stderr: stderrBuffer.slice(0, 500) });
       }
       this.emit('slot-freed', { availableSlots: this.availableSlots() });
     });

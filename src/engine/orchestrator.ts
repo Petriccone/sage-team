@@ -94,10 +94,10 @@ export class Orchestrator extends EventEmitter {
       this.emitEvent('task:completed', agentId, { taskId, cost, duration, turns, result });
     });
 
-    this.dispatcher.on('agent-failed', ({ agentId, taskId, exitCode }) => {
+    this.dispatcher.on('agent-failed', ({ agentId, taskId, exitCode, stderr }) => {
       this.tasks.updateStatus(taskId, 'failed');
       this.agents.clearTask(agentId);
-      this.emitEvent('task:failed', agentId, { taskId, exitCode });
+      this.emitEvent('task:failed', agentId, { taskId, exitCode, stderr: stderr || '' });
     });
 
     this.dispatcher.on('slot-freed', () => {
@@ -181,13 +181,17 @@ export class Orchestrator extends EventEmitter {
   async launchSprint(goal: string): Promise<void> {
     if (!this._sessionId) throw new Error('No active session');
 
-    // Emit meeting event
+    // Move Sage to meeting room (visual: CEO walks to meeting)
+    this.emitEvent('agent:move', 'sage', { room: 'meeting-room', seat: 0 });
+
+    // Emit meeting event — frontend moves all agents to meeting room
     this.emitEvent('meeting:start', null, {
       agents: PERSONAS.map(p => p.id),
     });
 
     await this.submitGoal(goal);
 
+    // Meeting over — agents walk back to desks
     this.emitEvent('meeting:end', null, {});
   }
 

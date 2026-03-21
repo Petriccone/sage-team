@@ -59,4 +59,35 @@ describe('CEOBrain', () => {
     expect(prompt).toContain('Quinn');
     expect(prompt).toContain('JSON');
   });
+
+  it('should ask questions on first chat message (instant, no AI)', async () => {
+    const brain = new CEOBrain({ apiKey: 'test', model: 'claude-sonnet-4-20250514' });
+    const response = await brain.chat('Build a website for a painting company in Dublin');
+    expect(response.type).toBe('question');
+    expect(response.questions).toBeDefined();
+    expect(response.questions!.length).toBeGreaterThan(0);
+    expect(response.message).toBeTruthy();
+  });
+
+  it('should detect website project type', async () => {
+    const brain = new CEOBrain({ apiKey: 'test', model: 'claude-sonnet-4-20250514' });
+    const response = await brain.chat('Criar um site profissional para empresa de pintura');
+    expect(response.type).toBe('question');
+    expect(response.questions!.some(q => q.toLowerCase().includes('tech') || q.toLowerCase().includes('stack'))).toBe(true);
+  });
+
+  it('should be ready on second message', async () => {
+    const brain = new CEOBrain({ apiKey: 'test', model: 'claude-sonnet-4-20250514' });
+    await brain.chat('Build a website for my company');
+    const response = await brain.chat('Use Next.js, modern design, I have all content ready');
+    expect(response.type).toBe('ready');
+    expect(response.summary).toBeTruthy();
+  });
+
+  it('should detect API project type', async () => {
+    const brain = new CEOBrain({ apiKey: 'test', model: 'claude-sonnet-4-20250514' });
+    const response = await brain.chat('Build a REST API for a todo application');
+    expect(response.type).toBe('question');
+    expect(response.questions!.some(q => q.toLowerCase().includes('database') || q.toLowerCase().includes('framework'))).toBe(true);
+  });
 });

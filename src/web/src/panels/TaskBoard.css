@@ -1,10 +1,12 @@
+/* ── Scrum Board Panel ─────────────────────────────── */
 .task-board {
-  width: 260px;
+  width: 280px;
   display: flex;
   flex-direction: column;
   background: #0d0d14;
   border-right: 1px solid #222;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .task-board.collapsed {
@@ -15,6 +17,7 @@
   justify-content: center;
 }
 
+/* ── Header ──────────────────────────────────────── */
 .task-board-header {
   display: flex;
   align-items: center;
@@ -23,99 +26,293 @@
   font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
-  color: #666;
+  letter-spacing: 1.5px;
+  color: #888;
   border-bottom: 1px solid #1a1a24;
   cursor: pointer;
+  user-select: none;
+}
+
+.task-board-header:hover {
+  color: #aaa;
 }
 
 .collapse-icon {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: #555;
 }
 
+.task-board-title {
+  flex: 1;
+}
+
+.task-count-badge {
+  font-size: 0.7rem;
+  background: #1a1a28;
+  color: #00ff88;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+/* ── Sprint Info ─────────────────────────────────── */
 .sprint-info {
   padding: 10px 14px;
   border-bottom: 1px solid #1a1a24;
 }
 
 .sprint-name {
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 700;
   color: #ffd700;
-  margin-bottom: 6px;
+  margin-bottom: 3px;
+}
+
+.sprint-goal {
+  font-size: 0.72rem;
+  color: #777;
+  margin-bottom: 8px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .sprint-progress-bar {
   width: 100%;
-  height: 4px;
+  height: 5px;
   background: #1a1a24;
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
 }
 
 .sprint-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #00ff88, #00bfff);
-  border-radius: 2px;
-  transition: width 0.5s ease;
+  border-radius: 3px;
+  transition: width 0.6s ease;
 }
 
 .sprint-progress-text {
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   color: #555;
   margin-top: 4px;
 }
 
-.task-list {
+/* ── Scrum Columns ───────────────────────────────── */
+.scrum-columns {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 4px 0;
 }
 
-.task-empty {
-  color: #444;
-  font-size: 0.78rem;
-  text-align: center;
-  padding: 24px 8px;
+.scrum-columns::-webkit-scrollbar {
+  width: 4px;
 }
 
-.task-item {
+.scrum-columns::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+
+.scrum-column {
+  margin-bottom: 2px;
+}
+
+.scrum-column-header {
   display: flex;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  font-size: 0.78rem;
-  cursor: pointer;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #666;
+  position: sticky;
+  top: 0;
+  background: #0d0d14;
+  z-index: 1;
 }
 
-.task-item:hover {
-  background: #111118;
+.scrum-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
-.task-status-icon {
+.scrum-dot.doing { background: #00bfff; box-shadow: 0 0 6px #00bfff88; }
+.scrum-dot.todo { background: #888; }
+.scrum-dot.blocked { background: #dc143c; box-shadow: 0 0 6px #dc143c88; }
+.scrum-dot.done { background: #00ff88; box-shadow: 0 0 6px #00ff8888; }
+
+.scrum-count {
+  margin-left: auto;
+  font-size: 0.65rem;
+  background: #161620;
+  color: #777;
+  padding: 0 5px;
+  border-radius: 6px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.scrum-column-body {
+  padding: 0 8px 4px;
+}
+
+/* ── Scrum Cards ─────────────────────────────────── */
+.scrum-card {
+  background: #12121c;
+  border: 1px solid #1e1e2e;
+  border-radius: 6px;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.scrum-card:hover {
+  border-color: #333;
+}
+
+.scrum-card.doing {
+  border-left: 2px solid #00bfff;
+}
+
+.scrum-card.todo {
+  border-left: 2px solid #444;
+}
+
+.scrum-card.blocked {
+  border-left: 2px solid #dc143c;
+}
+
+.scrum-card.done {
+  border-left: 2px solid #00ff88;
+  opacity: 0.6;
+}
+
+.scrum-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.scrum-card-emoji {
   font-size: 0.8rem;
   flex-shrink: 0;
 }
 
-.task-info {
-  min-width: 0;
+.scrum-card-agent {
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
-.task-title {
-  color: #ccc;
+.scrum-card-status {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: #00bfff;
+  background: #00bfff15;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.scrum-card-title {
+  font-size: 0.72rem;
+  color: #999;
+  margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.task-assignee {
-  font-size: 0.7rem;
+.scrum-card-title-inline {
+  font-size: 0.75rem;
+  color: #bbb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.scrum-card-assignee {
+  font-size: 0.65rem;
   color: #555;
   margin-top: 2px;
 }
 
-.task-item.status-done .task-title {
-  color: #666;
+.scrum-card-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  opacity: 0.4;
+}
+
+.scrum-card.done .scrum-card-title-inline {
   text-decoration: line-through;
+  color: #666;
+}
+
+.scrum-empty {
+  color: #333;
+  font-size: 0.72rem;
+  text-align: center;
+  padding: 12px 8px;
+  font-style: italic;
+}
+
+/* ── Team Footer ─────────────────────────────────── */
+.scrum-team-footer {
+  padding: 8px 14px;
+  border-top: 1px solid #1a1a24;
+  background: #0a0a12;
+}
+
+.scrum-team-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #444;
+  margin-bottom: 5px;
+}
+
+.scrum-team-avatars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 4px;
+}
+
+.scrum-avatar {
+  font-size: 0.7rem;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  background: #161620;
+  transition: opacity 0.3s, transform 0.2s;
+}
+
+.scrum-avatar.active {
+  animation: pulse-avatar 2s ease-in-out infinite;
+}
+
+@keyframes pulse-avatar {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+.scrum-team-summary {
+  font-size: 0.62rem;
+  color: #444;
 }

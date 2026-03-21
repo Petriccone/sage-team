@@ -16,7 +16,6 @@ function hasGit(): boolean {
 export function initCommand(): Command {
   return new Command('init')
     .description('Initialize Sage Team in current directory')
-    .option('--api-key <key>', 'Anthropic API key')
     .option('--company-name <name>', 'Company name')
     .option('--autonomy <mode>', 'Autonomy mode: sandbox|direct|supervised')
     .action(async (options) => {
@@ -35,22 +34,15 @@ export function initCommand(): Command {
       const isGitRepo = hasGit();
       const defaultMode = isGitRepo ? 'sandbox' : 'direct';
 
-      // Build config
-      const config = {
+      // Build config — no apiKey field, uses Claude Code directly (plug-and-play)
+      const config: Record<string, any> = {
         companyName: 'Sage Team',
         mission: 'Build amazing software autonomously',
         model: 'claude-sonnet-4-20250514',
         maxConcurrentAgents: 3,
         autonomyMode: options.autonomy || defaultMode,
-        apiKey: '',
       };
-      if (options.apiKey) config.apiKey = options.apiKey;
       if (options.companyName) config.companyName = options.companyName;
-
-      // Check env var
-      if (!config.apiKey && process.env.ANTHROPIC_API_KEY) {
-        config.apiKey = process.env.ANTHROPIC_API_KEY;
-      }
 
       // Write config
       fs.writeFileSync(
@@ -90,9 +82,6 @@ export function initCommand(): Command {
       console.log('Sage Team initialized successfully!');
       console.log(`  Config: ${sageDir}/config.json`);
       console.log(`  Mode: ${config.autonomyMode}`);
-      if (config.apiKey || process.env.ANTHROPIC_API_KEY) {
-        console.log('  API Key: detected');
-      }
       console.log('\n  Ready! Open Claude Code and say: "Start sage team with goal: ..."');
     });
 }

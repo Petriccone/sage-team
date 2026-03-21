@@ -10,8 +10,8 @@ const DEFAULT_AGENTS = [
   { id: 'flux', role: 'dev-fullstack', name: 'Flux', room: 'dev-bullpen', seat: 1 },
   { id: 'quinn', role: 'qa-lead', name: 'Quinn', room: 'qa-lab', seat: 0 },
   { id: 'gage', role: 'devops', name: 'Gage', room: 'qa-lab', seat: 1 },
-  { id: 'morgan', role: 'product-manager', name: 'Morgan', room: 'design-studio', seat: 1 },
   { id: 'uma', role: 'ux-designer', name: 'Uma', room: 'design-studio', seat: 0 },
+  { id: 'morgan', role: 'product-manager', name: 'Morgan', room: 'design-studio', seat: 1 },
   { id: 'river', role: 'scrum-master', name: 'River', room: 'lounge', seat: 0 },
   { id: 'atlas', role: 'data-engineer', name: 'Atlas', room: 'data-lab', seat: 0 },
 ];

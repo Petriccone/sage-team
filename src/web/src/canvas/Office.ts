@@ -134,15 +134,15 @@ export class Office {
     // ── Building sign ──
     const signPos = toScreen(col + w / 2, row);
     const sign = new Text({
-      text: '\u{1F3E2} SAGE TEAM HQ',
+      text: 'SAGE TEAM HQ',
       style: new TextStyle({
-        fontSize: 18,
+        fontSize: 11,
         fill: '#ffd700',
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
-        letterSpacing: 4,
-        dropShadow: { color: '#000000', blur: 10, distance: 3, alpha: 1 },
-        stroke: { color: '#000000', width: 4 },
+        letterSpacing: 2,
+        dropShadow: { color: '#000000', blur: 4, distance: 1, alpha: 1 },
+        stroke: { color: '#000000', width: 2 },
       }),
     });
     sign.anchor.set(0.5, 0.5);
@@ -211,25 +211,25 @@ export class Office {
     border.stroke({ color: accentColor, width: 1, alpha: 0.2 });
     container.addChild(border);
 
-    // Room label — large white text, very readable
-    const labelPos = toScreen(room.col + room.w / 2, room.row + room.h / 2);
+    // Room label — small, at the top-left corner of the room, out of the way
+    const labelPos = toScreen(room.col + room.w / 2, room.row + 0.2);
     const label = new Text({
-      text: `${room.icon} ${room.label.toUpperCase()}`,
+      text: `${room.icon} ${room.label}`,
       style: new TextStyle({
-        fontSize: 14,
-        fill: '#ffffff',
+        fontSize: 9,
+        fill: room.color,
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
-        letterSpacing: 2,
+        letterSpacing: 0.5,
         align: 'center',
-        dropShadow: { color: '#000000', blur: 8, distance: 2, alpha: 1 },
-        stroke: { color: '#000000', width: 4 },
+        dropShadow: { color: '#000000', blur: 4, distance: 1, alpha: 1 },
+        stroke: { color: '#000000', width: 2 },
       }),
     });
     label.anchor.set(0.5, 0.5);
     label.x = labelPos.x;
     label.y = labelPos.y;
-    label.alpha = 1;
+    label.alpha = 0.9;
     container.addChild(label);
 
     this.world.addChild(container);

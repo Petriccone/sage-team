@@ -48,7 +48,7 @@ export interface AgentData {
   position_seat: number;
 }
 
-/** Pixel art style agent — blocky 8/16-bit inspired character */
+/** Pixel art style agent — blocky character that sits at desk */
 export class AgentSprite {
   container: Container;
   private body: Graphics;
@@ -57,14 +57,14 @@ export class AgentSprite {
   private label: Text;
   private statusLabel: Text;
   private shadow: Graphics;
-  private bobOffset = Math.random() * Math.PI * 2;
+  private pulseOffset = Math.random() * Math.PI * 2;
   private targetX = 0;
   private targetY = 0;
   private currentX = 0;
   private currentY = 0;
   private lastStatus = '';
-  private isWalking = false;
-  private _wandering = false; // true when wandering system controls target
+  private lastRoom = '';
+  private lastSeat = -1;
 
   constructor(data: AgentData) {
     this.container = new Container();
@@ -72,7 +72,7 @@ export class AgentSprite {
 
     const color = AGENT_COLORS[data.id] || 0xcccccc;
 
-    // Ground shadow (pixel-snapped ellipse)
+    // Ground shadow
     this.shadow = new Graphics();
     this.shadow.zIndex = 0;
     this.container.addChild(this.shadow);
@@ -95,75 +95,65 @@ export class AgentSprite {
     this.statusBubble.visible = false;
     this.container.addChild(this.statusBubble);
 
-    // Name label — big, white, always readable
+    // Name label
     this.label = new Text({
       text: data.name,
       style: new TextStyle({
-        fontSize: 12,
-        fill: '#ffffff',
+        fontSize: 9,
+        fill: color,
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
-        letterSpacing: 1,
-        dropShadow: {
-          color: '#000000',
-          blur: 6,
-          distance: 2,
-          alpha: 1,
-        },
-        stroke: { color: '#000000', width: 3 },
+        letterSpacing: 0.5,
+        dropShadow: { color: '#000000', blur: 4, distance: 1, alpha: 1 },
+        stroke: { color: '#000000', width: 2 },
       }),
     });
     this.label.anchor.set(0.5, 0);
-    this.label.y = 16;
+    this.label.y = 14;
     this.label.zIndex = 5;
     this.container.addChild(this.label);
 
-    // Status text
+    // Status text (only shown when active)
     this.statusLabel = new Text({
       text: '',
       style: new TextStyle({
-        fontSize: 10,
-        fill: '#ffffff',
+        fontSize: 7,
+        fill: 0xaaaaaa,
         fontFamily: "'Courier New', 'Consolas', monospace",
-        fontWeight: '700',
-        dropShadow: {
-          color: '#000000',
-          blur: 6,
-          distance: 2,
-          alpha: 1,
-        },
-        stroke: { color: '#000000', width: 3 },
+        fontWeight: '400',
+        dropShadow: { color: '#000000', blur: 3, distance: 1, alpha: 1 },
+        stroke: { color: '#000000', width: 1.5 },
       }),
     });
     this.statusLabel.anchor.set(0.5, 0);
-    this.statusLabel.y = 30;
+    this.statusLabel.y = 24;
     this.statusLabel.zIndex = 5;
     this.statusLabel.visible = false;
     this.container.addChild(this.statusLabel);
 
-    // Initial position
+    // Initial position — snap immediately
     this.setPositionFromRoom(data.position_room, data.position_seat);
     this.currentX = this.targetX;
     this.currentY = this.targetY;
     this.container.x = this.currentX;
     this.container.y = this.currentY;
+    this.lastRoom = data.position_room;
+    this.lastSeat = data.position_seat;
   }
 
-  /** Draw a pixel art person — blocky 16-bit style character */
   private drawPixelPerson(g: Graphics, agentId: string) {
     const color = AGENT_COLORS[agentId] || 0xcccccc;
     const skin = SKIN_TONES[agentId] || 0xf5d6b8;
     const hair = HAIR_COLORS[agentId] || 0x2a2a2a;
     const hairStyle = HAIR_STYLE[agentId] || 0;
-    const px = 2; // pixel size
+    const px = 2;
 
-    // Hair (varies by style)
     switch (hairStyle) {
-      case 0: // Short
+      case 0:
         g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
         g.fill({ color: hair });
         break;
-      case 1: // Medium
+      case 1:
         g.rect(-3 * px, -12 * px, 6 * px, 4 * px);
         g.fill({ color: hair });
         g.rect(-4 * px, -11 * px, 1 * px, 4 * px);
@@ -171,7 +161,7 @@ export class AgentSprite {
         g.rect(3 * px, -11 * px, 1 * px, 4 * px);
         g.fill({ color: hair });
         break;
-      case 2: // Long
+      case 2:
         g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
         g.fill({ color: hair });
         g.rect(-4 * px, -11 * px, 1 * px, 7 * px);
@@ -179,13 +169,13 @@ export class AgentSprite {
         g.rect(3 * px, -11 * px, 1 * px, 7 * px);
         g.fill({ color: hair });
         break;
-      case 3: // Mohawk
+      case 3:
         g.rect(-1 * px, -14 * px, 2 * px, 2 * px);
         g.fill({ color: hair });
         g.rect(-2 * px, -12 * px, 4 * px, 2 * px);
         g.fill({ color: hair });
         break;
-      case 4: // Bun
+      case 4:
         g.rect(-3 * px, -12 * px, 6 * px, 3 * px);
         g.fill({ color: hair });
         g.rect(-1 * px, -14 * px, 2 * px, 2 * px);
@@ -193,49 +183,30 @@ export class AgentSprite {
         break;
     }
 
-    // Head (3x3 pixel block)
     g.rect(-3 * px, -10 * px, 6 * px, 5 * px);
     g.fill({ color: skin });
-
-    // Eyes (1px each)
     g.rect(-2 * px, -8 * px, 1 * px, 1 * px);
     g.fill({ color: 0x111111 });
     g.rect(1 * px, -8 * px, 1 * px, 1 * px);
     g.fill({ color: 0x111111 });
-
-    // Mouth (1px)
     g.rect(-1 * px, -6 * px, 2 * px, 1 * px);
     g.fill({ color: darken(skin, 0.2) });
-
-    // Torso/Shirt (blocky)
     g.rect(-4 * px, -5 * px, 8 * px, 6 * px);
     g.fill({ color });
-
-    // Shirt collar
     g.rect(-2 * px, -5 * px, 4 * px, 1 * px);
     g.fill({ color: darken(color, 0.15) });
-
-    // Left arm
     g.rect(-5 * px, -4 * px, 1 * px, 5 * px);
     g.fill({ color: darken(color, 0.1) });
-    // Left hand
     g.rect(-5 * px, 1 * px, 1 * px, 1 * px);
     g.fill({ color: skin });
-
-    // Right arm
     g.rect(4 * px, -4 * px, 1 * px, 5 * px);
     g.fill({ color: darken(color, 0.1) });
-    // Right hand
     g.rect(4 * px, 1 * px, 1 * px, 1 * px);
     g.fill({ color: skin });
-
-    // Pants/legs
     g.rect(-3 * px, 1 * px, 3 * px, 4 * px);
     g.fill({ color: 0x222233 });
     g.rect(0, 1 * px, 3 * px, 4 * px);
     g.fill({ color: 0x2a2a3a });
-
-    // Shoes
     g.rect(-4 * px, 5 * px, 3 * px, 1 * px);
     g.fill({ color: 0x1a1a1a });
     g.rect(1 * px, 5 * px, 3 * px, 1 * px);
@@ -244,21 +215,9 @@ export class AgentSprite {
 
   private drawStatusBubble(g: Graphics, status: string, color: number) {
     g.clear();
-
-    // Status icons as pixel art in thought bubble
-    const icons: Record<string, string> = {
-      coding: '</>', reviewing: 'eye', testing: 'bug',
-      planning: '...', blocked: '!', deploying: '^',
-      thinking: '?',
-    };
-    const icon = icons[status] || '?';
-
-    // Bubble background
     g.roundRect(-12, -32, 24, 14, 3);
     g.fill({ color: 0x1a1a2a, alpha: 0.9 });
     g.stroke({ color, width: 1, alpha: 0.6 });
-
-    // Bubble tail dots
     g.circle(0, -19, 2);
     g.fill({ color: 0x1a1a2a, alpha: 0.8 });
     g.circle(2, -16, 1);
@@ -274,75 +233,56 @@ export class AgentSprite {
     }
   }
 
-  /** Set a free-form target position (for wandering) */
-  setTarget(x: number, y: number) {
-    this.targetX = x;
-    this.targetY = y;
-    this._wandering = true;
-  }
-
-  /** Release wandering — let update() control position again */
-  clearWander() {
-    this._wandering = false;
-  }
-
   update(data: AgentData) {
-    // Only reset to seat position if NOT being controlled by wandering
-    if (!this._wandering) {
+    // Only update target when room/seat actually changes (event-driven movement)
+    if (data.position_room !== this.lastRoom || data.position_seat !== this.lastSeat) {
       this.setPositionFromRoom(data.position_room, data.position_seat);
+      this.lastRoom = data.position_room;
+      this.lastSeat = data.position_seat;
     }
 
-    // Smooth movement — walk speed scales with distance
+    // Smooth walk to target (only moves when target changes)
     const dx = this.targetX - this.currentX;
     const dy = this.targetY - this.currentY;
     const dist = Math.sqrt(dx * dx + dy * dy);
+    const isWalking = dist > 1.5;
 
-    if (dist > 1.5) {
-      // Walking speed: faster for long distances, ease in near target
-      const speed = dist > 80 ? 3.5 : dist > 30 ? 2.5 : Math.max(dist * 0.1, 0.8);
+    if (isWalking) {
+      const speed = dist > 80 ? 3 : dist > 30 ? 2 : Math.max(dist * 0.08, 0.6);
       this.currentX += (dx / dist) * speed;
       this.currentY += (dy / dist) * speed;
-      this.isWalking = true;
     } else {
       this.currentX = this.targetX;
       this.currentY = this.targetY;
-      this.isWalking = false;
     }
 
-    this.bobOffset += 0.04;
+    this.pulseOffset += 0.03;
     const isActive = data.status !== 'idle';
 
-    // Walking bob is faster and more pronounced than idle bob
+    // Subtle breathing when working (no jumping)
     let bob = 0;
-    if (this.isWalking) {
-      bob = Math.round(Math.abs(Math.sin(this.bobOffset * 8)) * 3); // Walking bounce
-    } else if (isActive) {
-      bob = Math.round(Math.sin(this.bobOffset * 3) * 1.5); // Idle working bob
+    if (isWalking) {
+      bob = Math.round(Math.abs(Math.sin(this.pulseOffset * 6)) * 2);
     }
 
     this.container.x = this.currentX;
-    this.container.y = this.currentY + bob;
+    this.container.y = this.currentY - bob;
     this.container.zIndex = this.currentY + 100;
 
     // Shadow
     this.shadow.clear();
-    const shadowAlpha = isActive ? 0.2 : 0.3;
-    this.shadow.ellipse(0, 8, 8, 3);
-    this.shadow.fill({ color: 0x000000, alpha: shadowAlpha });
+    this.shadow.ellipse(0, 8, 7, 3);
+    this.shadow.fill({ color: 0x000000, alpha: 0.25 });
 
-    // Status glow ring
+    // Status glow ring (only when actively working)
     const glowColor = STATUS_GLOW[data.status];
     if (glowColor && isActive) {
       this.glow.visible = true;
       this.glow.clear();
-      // Pixel-style ring (octagon instead of smooth circle)
-      this.glow.ellipse(0, 0, 14, 14);
-      this.glow.fill({ color: glowColor, alpha: 0.08 + Math.sin(this.bobOffset * 2) * 0.04 });
-      // Ground ring
+      const pulse = 0.15 + Math.sin(this.pulseOffset * 2) * 0.08;
       this.glow.ellipse(0, 8, 10, 4);
-      this.glow.stroke({ color: glowColor, width: 2, alpha: 0.3 + Math.sin(this.bobOffset * 2) * 0.15 });
+      this.glow.stroke({ color: glowColor, width: 1.5, alpha: pulse });
 
-      // Status bubble
       this.statusBubble.visible = true;
       this.drawStatusBubble(this.statusBubble, data.status, glowColor);
     } else {

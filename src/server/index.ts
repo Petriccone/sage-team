@@ -62,6 +62,7 @@ export async function createServer(orchestrator: Orchestrator, port: number): Pr
       agents: orchestrator.getAgents(),
       tasks: orchestrator.getTasks(),
       prs: orchestrator.getPendingPRs(),
+      sprint: orchestrator.getSprint(),
     }));
 
     // Handle client messages

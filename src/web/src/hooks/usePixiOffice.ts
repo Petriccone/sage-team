@@ -5,51 +5,38 @@ import { useStore, type WowEvent } from '../store';
 import { toScreen } from '../canvas/iso';
 import { ROOMS, getSeatPosition, AGENT_HOME, MEETING_SEATS, type RoomDef } from '../canvas/rooms';
 
-// ── Wandering simulation ──────────────────────────────────────────
-// Makes agents walk around the office so it feels alive
+// ── Agent-visits-agent simulation ──────────────────────────────────
+// Agents walk to other agents to "talk", then walk back to their desk.
+// This makes the office feel alive with constant movement.
 
 interface WanderState {
-  phase: 'sitting' | 'walking-to' | 'visiting';
-  timer: number;        // frames remaining in this phase
-  targetRoom: string;   // where they're walking to (or current room)
-  targetCol: number;
-  targetRow: number;
+  phase: 'at-desk' | 'walking-to-friend' | 'chatting' | 'walking-home';
+  timer: number;
+  friendId: string;       // who they're visiting
+  friendCol: number;
+  friendRow: number;
 }
 
 const WANDER_STATES = new Map<string, WanderState>();
 
-/** Pick a random point inside a room */
-function randomPointInRoom(room: RoomDef): { col: number; row: number } {
-  return {
-    col: room.col + 0.5 + Math.random() * (room.w - 1),
-    row: room.row + 0.5 + Math.random() * (room.h - 1),
-  };
+/** Get all agent IDs except the given one */
+function otherAgentIds(excludeId: string): string[] {
+  const state = useStore.getState();
+  return state.agents.filter((a) => a.id !== excludeId).map((a) => a.id);
 }
 
-/** Pick a neighboring or random room to visit */
-function pickVisitRoom(currentRoom: string): RoomDef {
-  // Weighted: 60% go to an adjacent room, 40% random
-  const current = ROOMS.find((r) => r.id === currentRoom);
-  if (!current) return ROOMS[Math.floor(Math.random() * ROOMS.length)];
-
-  // Find adjacent rooms (share an edge)
-  const adjacent = ROOMS.filter((r) => {
-    if (r.id === currentRoom) return false;
-    const shareH =
-      (current.row + current.h === r.row || r.row + r.h === current.row) &&
-      Math.max(current.col, r.col) < Math.min(current.col + current.w, r.col + r.w);
-    const shareV =
-      (current.col + current.w === r.col || r.col + r.w === current.col) &&
-      Math.max(current.row, r.row) < Math.min(current.row + current.h, r.row + r.h);
-    return shareH || shareV;
-  });
-
-  if (adjacent.length > 0 && Math.random() < 0.6) {
-    return adjacent[Math.floor(Math.random() * adjacent.length)];
-  }
-  // Random room (not current)
-  const others = ROOMS.filter((r) => r.id !== currentRoom);
-  return others[Math.floor(Math.random() * others.length)];
+/** Get another agent's current seat position */
+function agentSeatPos(agentId: string): { col: number; row: number } | null {
+  const state = useStore.getState();
+  const agent = state.agents.find((a) => a.id === agentId);
+  if (!agent) return null;
+  const seat = getSeatPosition(agent.position_room, agent.position_seat);
+  if (!seat) return null;
+  // Stand next to the friend, not on top of them
+  return {
+    col: seat.col + (Math.random() - 0.5) * 1.2,
+    row: seat.row + (Math.random() - 0.5) * 0.8,
+  };
 }
 
 /** Run one frame of wandering simulation for all agents */
@@ -58,74 +45,92 @@ function simulateWandering(office: Office) {
   const agents = state.agents;
 
   for (const agent of agents) {
+    const sprite = office.agentSprites.get(agent.id);
+    if (!sprite) continue;
+
     let ws = WANDER_STATES.get(agent.id);
 
-    // Initialize wander state
+    // Initialize — each agent starts at desk with a staggered delay
     if (!ws) {
       ws = {
-        phase: 'sitting',
-        timer: 120 + Math.floor(Math.random() * 300), // 2-7 seconds before first wander
-        targetRoom: agent.position_room,
-        targetCol: 0,
-        targetRow: 0,
+        phase: 'at-desk',
+        timer: 180 + Math.floor(Math.random() * 420), // 3-10s before first wander
+        friendId: '',
+        friendCol: 0,
+        friendRow: 0,
       };
       WANDER_STATES.set(agent.id, ws);
     }
 
     ws.timer--;
 
-    if (ws.phase === 'sitting' && ws.timer <= 0) {
-      // Decide: wander within room or visit another room
-      const goVisit = Math.random() < 0.35; // 35% chance to visit another room
-      if (goVisit) {
-        const visitRoom = pickVisitRoom(agent.position_room);
-        const pt = randomPointInRoom(visitRoom);
-        ws.phase = 'walking-to';
-        ws.targetRoom = visitRoom.id;
-        ws.targetCol = pt.col;
-        ws.targetRow = pt.row;
-        ws.timer = 180 + Math.floor(Math.random() * 240); // walk for 3-7 sec
+    // AT DESK — waiting, then decide to visit someone
+    if (ws.phase === 'at-desk' && ws.timer <= 0) {
+      const others = otherAgentIds(agent.id);
+      if (others.length > 0) {
+        const friendId = others[Math.floor(Math.random() * others.length)];
+        const friendPos = agentSeatPos(friendId);
+        if (friendPos) {
+          ws.phase = 'walking-to-friend';
+          ws.friendId = friendId;
+          ws.friendCol = friendPos.col;
+          ws.friendRow = friendPos.row;
+          ws.timer = 600; // max 10s to arrive (safety timeout)
+
+          const target = toScreen(friendPos.col, friendPos.row);
+          sprite.setTarget(target.x, target.y);
+        }
+      }
+    }
+
+    // WALKING TO FRIEND — keep moving, check if arrived
+    if (ws.phase === 'walking-to-friend') {
+      // Check if sprite has arrived (distance < 3px)
+      const target = toScreen(ws.friendCol, ws.friendRow);
+      const dx = sprite.container.x - target.x;
+      const dy = sprite.container.y - target.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 4 || ws.timer <= 0) {
+        // Arrived! Chat for a while
+        ws.phase = 'chatting';
+        ws.timer = 180 + Math.floor(Math.random() * 240); // 3-7s chat
+      }
+    }
+
+    // CHATTING — stand near friend, then leave
+    if (ws.phase === 'chatting' && ws.timer <= 0) {
+      ws.phase = 'walking-home';
+      ws.timer = 600; // safety timeout
+
+      // Walk back to own seat
+      const seat = getSeatPosition(agent.position_room, agent.position_seat);
+      if (seat) {
+        const target = toScreen(seat.col, seat.row);
+        sprite.setTarget(target.x, target.y);
+      }
+    }
+
+    // WALKING HOME — check if arrived back
+    if (ws.phase === 'walking-home') {
+      const seat = getSeatPosition(agent.position_room, agent.position_seat);
+      if (seat) {
+        const target = toScreen(seat.col, seat.row);
+        const dx = sprite.container.x - target.x;
+        const dy = sprite.container.y - target.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 4 || ws.timer <= 0) {
+          // Back at desk — clear wandering, sit for a while
+          ws.phase = 'at-desk';
+          ws.timer = 240 + Math.floor(Math.random() * 480); // 4-12s at desk
+          sprite.clearWander();
+        }
       } else {
-        // Wander within current room
-        const room = ROOMS.find((r) => r.id === agent.position_room);
-        if (room) {
-          const pt = randomPointInRoom(room);
-          ws.phase = 'walking-to';
-          ws.targetRoom = room.id;
-          ws.targetCol = pt.col;
-          ws.targetRow = pt.row;
-          ws.timer = 90 + Math.floor(Math.random() * 120); // shorter walk
-        }
-      }
-    }
-
-    if (ws.phase === 'walking-to') {
-      // Set sprite target to the wander destination
-      const sprite = office.agentSprites.get(agent.id);
-      if (sprite) {
-        const pos = toScreen(ws.targetCol, ws.targetRow);
-        sprite.setTarget(pos.x, pos.y);
-      }
-
-      if (ws.timer <= 0) {
-        ws.phase = 'visiting';
-        ws.timer = 120 + Math.floor(Math.random() * 240); // hang out 2-6 sec
-      }
-    }
-
-    if (ws.phase === 'visiting' && ws.timer <= 0) {
-      // Go back to home seat
-      ws.phase = 'sitting';
-      ws.timer = 180 + Math.floor(Math.random() * 360); // sit for 3-9 sec
-
-      // Reset sprite target to their actual seat
-      const sprite = office.agentSprites.get(agent.id);
-      if (sprite) {
-        const seatDef = getSeatPosition(agent.position_room, agent.position_seat);
-        if (seatDef) {
-          const pos = toScreen(seatDef.col, seatDef.row);
-          sprite.setTarget(pos.x, pos.y);
-        }
+        // No seat found, just reset
+        ws.phase = 'at-desk';
+        ws.timer = 300;
+        sprite.clearWander();
       }
     }
   }

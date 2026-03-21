@@ -391,6 +391,22 @@ export class Orchestrator extends EventEmitter {
     return this.pullRequests.findPending(this._sessionId);
   }
 
+  getSprint(): any | null {
+    if (!this._sessionId) return null;
+    const sprint = this.sprints.findActive(this._sessionId);
+    if (!sprint) return null;
+    const tasks = this.tasks.findBySession(this._sessionId);
+    const sprintTasks = tasks.filter((t: any) => t.sprint_id === sprint.id);
+    return {
+      id: sprint.id,
+      name: sprint.name,
+      goal: sprint.goal,
+      status: sprint.status,
+      task_count: sprintTasks.length,
+      completed_count: sprintTasks.filter((t: any) => t.status === 'completed').length,
+    };
+  }
+
   async approvePR(prId: string): Promise<void> {
     this.pullRequests.updateStatus(prId, 'user_approved');
     const pr = this.pullRequests.findById(prId);

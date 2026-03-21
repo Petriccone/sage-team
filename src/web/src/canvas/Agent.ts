@@ -64,6 +64,7 @@ export class AgentSprite {
   private currentY = 0;
   private lastStatus = '';
   private isWalking = false;
+  private _wandering = false; // true when wandering system controls target
 
   constructor(data: AgentData) {
     this.container = new Container();
@@ -94,26 +95,26 @@ export class AgentSprite {
     this.statusBubble.visible = false;
     this.container.addChild(this.statusBubble);
 
-    // Name label — clear and readable
+    // Name label — big, white, always readable
     this.label = new Text({
       text: data.name,
       style: new TextStyle({
-        fontSize: 11,
+        fontSize: 12,
         fill: '#ffffff',
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
-        letterSpacing: 0.5,
+        letterSpacing: 1,
         dropShadow: {
           color: '#000000',
-          blur: 4,
-          distance: 1,
-          alpha: 0.9,
+          blur: 6,
+          distance: 2,
+          alpha: 1,
         },
-        stroke: { color: '#000000', width: 2.5 },
+        stroke: { color: '#000000', width: 3 },
       }),
     });
     this.label.anchor.set(0.5, 0);
-    this.label.y = 14;
+    this.label.y = 16;
     this.label.zIndex = 5;
     this.container.addChild(this.label);
 
@@ -121,21 +122,21 @@ export class AgentSprite {
     this.statusLabel = new Text({
       text: '',
       style: new TextStyle({
-        fontSize: 9,
-        fill: 0xcccccc,
+        fontSize: 10,
+        fill: '#ffffff',
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
         dropShadow: {
           color: '#000000',
-          blur: 4,
-          distance: 1,
-          alpha: 0.9,
+          blur: 6,
+          distance: 2,
+          alpha: 1,
         },
-        stroke: { color: '#000000', width: 2 },
+        stroke: { color: '#000000', width: 3 },
       }),
     });
     this.statusLabel.anchor.set(0.5, 0);
-    this.statusLabel.y = 26;
+    this.statusLabel.y = 30;
     this.statusLabel.zIndex = 5;
     this.statusLabel.visible = false;
     this.container.addChild(this.statusLabel);
@@ -277,10 +278,19 @@ export class AgentSprite {
   setTarget(x: number, y: number) {
     this.targetX = x;
     this.targetY = y;
+    this._wandering = true;
+  }
+
+  /** Release wandering — let update() control position again */
+  clearWander() {
+    this._wandering = false;
   }
 
   update(data: AgentData) {
-    this.setPositionFromRoom(data.position_room, data.position_seat);
+    // Only reset to seat position if NOT being controlled by wandering
+    if (!this._wandering) {
+      this.setPositionFromRoom(data.position_room, data.position_seat);
+    }
 
     // Smooth movement — walk speed scales with distance
     const dx = this.targetX - this.currentX;

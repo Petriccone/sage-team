@@ -121,6 +121,7 @@ export function useWebSocket() {
           if (event.agents) setAgents(event.agents);
           if (event.tasks) setTasks(event.tasks);
           if (event.prs) setPRs(event.prs);
+          if (event.sprint) useStore.setState({ sprint: event.sprint });
           pushActivity({
             agentId: null,
             icon: '\u{1F3E2}',

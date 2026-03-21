@@ -3,7 +3,7 @@ import { TILE_W, TILE_H, toScreen } from './iso';
 import { ROOMS, BUILDING, SEATS, FURNITURE, getSeatPosition, type RoomDef, type FurnitureDef } from './rooms';
 import { AgentSprite, type AgentData } from './Agent';
 
-const WALL_HEIGHT = 22;
+const WALL_HEIGHT = 28;
 const PX = 2;
 
 export class Office {
@@ -91,7 +91,7 @@ export class Office {
       { x: tr.x, y: tr.y - WALL_HEIGHT },
       { x: tr.x, y: tr.y },
     ]);
-    backWall.fill({ color: 0x686878, alpha: 0.95 });
+    backWall.fill({ color: 0x686878, alpha: 1 });
     // Horizontal panel lines
     for (let i = 1; i <= 4; i++) {
       const frac = i / 5;
@@ -116,7 +116,7 @@ export class Office {
       { x: bl.x, y: bl.y - WALL_HEIGHT },
       { x: bl.x, y: bl.y },
     ]);
-    leftWall.fill({ color: 0x787888, alpha: 0.95 });
+    leftWall.fill({ color: 0x787888, alpha: 1 });
     for (let i = 1; i <= 4; i++) {
       const frac = i / 5;
       const y1 = tl.y - WALL_HEIGHT * (1 - frac);
@@ -136,13 +136,13 @@ export class Office {
     const sign = new Text({
       text: '\u{1F3E2} SAGE TEAM HQ',
       style: new TextStyle({
-        fontSize: 16,
+        fontSize: 18,
         fill: '#ffd700',
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
-        letterSpacing: 3,
-        dropShadow: { color: '#000000', blur: 8, distance: 2, alpha: 0.9 },
-        stroke: { color: '#000000', width: 3 },
+        letterSpacing: 4,
+        dropShadow: { color: '#000000', blur: 10, distance: 3, alpha: 1 },
+        stroke: { color: '#000000', width: 4 },
       }),
     });
     sign.anchor.set(0.5, 0.5);
@@ -211,25 +211,25 @@ export class Office {
     border.stroke({ color: accentColor, width: 1, alpha: 0.2 });
     container.addChild(border);
 
-    // Room label (on the floor, inside the room) — large and readable
-    const labelPos = toScreen(room.col + room.w / 2, room.row + 0.8);
+    // Room label — large white text, very readable
+    const labelPos = toScreen(room.col + room.w / 2, room.row + room.h / 2);
     const label = new Text({
-      text: `${room.icon}  ${room.label.toUpperCase()}`,
+      text: `${room.icon} ${room.label.toUpperCase()}`,
       style: new TextStyle({
-        fontSize: 13,
+        fontSize: 14,
         fill: '#ffffff',
         fontFamily: "'Courier New', 'Consolas', monospace",
         fontWeight: '700',
-        letterSpacing: 1.5,
+        letterSpacing: 2,
         align: 'center',
-        dropShadow: { color: '#000000', blur: 6, distance: 2, alpha: 0.9 },
-        stroke: { color: '#000000', width: 3 },
+        dropShadow: { color: '#000000', blur: 8, distance: 2, alpha: 1 },
+        stroke: { color: '#000000', width: 4 },
       }),
     });
     label.anchor.set(0.5, 0.5);
     label.x = labelPos.x;
-    label.y = labelPos.y - 4;
-    label.alpha = 0.95;
+    label.y = labelPos.y;
+    label.alpha = 1;
     container.addChild(label);
 
     this.world.addChild(container);
@@ -315,7 +315,7 @@ export class Office {
 
     // Draw each wall segment as a thin 3D wall
     for (const seg of wallSegments) {
-      const wallH = WALL_HEIGHT * 0.6; // Internal walls are shorter
+      const wallH = WALL_HEIGHT * 0.7; // Internal walls slightly shorter than outer
       const wall = new Graphics();
 
       // Wall face — solid panel so rooms are clearly separated
@@ -326,8 +326,8 @@ export class Office {
         seg.to,
       ]);
       const wallBase = seg.side === 'horizontal' ? 0x606070 : 0x585868;
-      wall.fill({ color: wallBase, alpha: 0.92 });
-      wall.stroke({ color: 0x484858, width: 1, alpha: 0.8 });
+      wall.fill({ color: wallBase, alpha: 1 });
+      wall.stroke({ color: 0x484858, width: 1, alpha: 1 });
 
       // Horizontal panel lines for texture
       for (let i = 1; i <= 3; i++) {

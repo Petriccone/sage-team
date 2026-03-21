@@ -1,4 +1,4 @@
-# Sage Team v3.4
+# Sage Team v3.5
 
 > AI-Powered Autonomous Software Company — 11 agents execute real code via Claude Code, with a PixiJS isometric office visualization and native Claude Code MCP integration.
 
@@ -10,7 +10,8 @@ Sage Team runs a complete AI software company. A **CEO agent** decomposes your g
 - **Hybrid Engine** — CEO plans via Claude API (fast/cheap), agents execute via Claude Code (powerful)
 - **SQLite Persistence** — Full state survives restarts. Resume any session.
 - **Skill Injection** — Agent prompts include real skill protocols from Superpowers and Antigravity
-- **Isometric Office** — PixiJS browser visualization with 10 rooms, animated agents, particle effects
+- **Isometric Office** — PixiJS 2.5D office with 10 rooms, pixel-art agents that walk around, particle effects
+- **Visual Scrum Board** — Live task tracking with To Do / In Progress / Done columns
 - **PR Workflow** — Agents create branches, you review and approve/reject PRs in the UI
 
 ## Quick Start
@@ -67,16 +68,44 @@ sage-team start --goal "Build a REST API for a todo app with authentication"
 | Agent | Role | Room | Focus |
 |-------|------|------|-------|
 | 👑 **Sage** | CEO | CEO Office | Goal decomposition, sprint planning, delegation |
-| 🔮 **Nova** | CTO | CTO Office | Architecture review, technical decisions |
+| 🔬 **Nova** | CTO | CTO Office | Architecture review, technical decisions |
 | 🏛️ **Aria** | Architect | Arch Lab | System design, API patterns |
 | ⚡ **Dex** | Senior Dev | Dev Bullpen | Core implementation, TDD |
 | 🌊 **Flux** | Full Stack Dev | Dev Bullpen | Frontend + backend, end-to-end features |
 | 🔍 **Quinn** | QA Lead | QA Lab | Testing, quality gates |
-| ⚙️ **Gage** | DevOps | QA Lab | CI/CD, deployment, infrastructure |
+| 🚀 **Gage** | DevOps | QA Lab | CI/CD, deployment, infrastructure |
 | 📋 **Morgan** | Product Manager | Design Studio | Requirements, prioritization |
 | 🎨 **Uma** | UX Designer | Design Studio | UI/UX design, accessibility |
 | 🌀 **River** | Scrum Master | Lounge | Process, blocker removal |
 | 📊 **Atlas** | Data Engineer | Data Lab | Database, data pipelines |
+
+## Browser UI
+
+```
+┌──────────────────────────────────────────────────────┐
+│ 👑Sage 🔬Nova 🏛️Aria ⚡Dex 🌊Flux 🔍Quinn ...       │  Agent bar
+├───────────┬──────────────────────┬───────────────────┤
+│ SCRUM     │                      │ ACTIVITY          │
+│ BOARD     │   ISOMETRIC OFFICE   │ FEED              │
+│           │   (PixiJS canvas)    │                   │
+│ ● Doing   │   Agents walk around │ sage: planning..  │
+│   Dex     │   rooms, sit at      │ dex: coding...    │
+│   coding  │   desks, visit       │ quinn: testing..  │
+│           │   each other         │                   │
+│ ● To Do   │                      │                   │
+│ ● Done    │                      │                   │
+│           │                      │                   │
+│ Team      │                      │                   │
+│ 👑🔬🏛️⚡🌊│                      │                   │
+├───────────┴──────────────────────┴───────────────────┤
+│ [Enter a goal for your team...               ] [Go]  │
+└──────────────────────────────────────────────────────┘
+```
+
+- **Left** — Scrum Board: task columns (In Progress, To Do, Blocked, Done) + team avatars
+- **Center** — Isometric office: pixel-art agents wander between 10 rooms with solid walls and doorways
+- **Right** — Live activity feed: timestamped events from all agents as they work
+- **Bottom** — Goal input + pending PR badges
 
 ## MCP Tools (inside Claude Code)
 
@@ -142,7 +171,7 @@ You submit a goal
         ▼
 ┌─────────────┐     WebSocket
 │   Browser   │◄───────────────── Real-time events, agent positions,
-│   (PixiJS)  │                   particle effects, wow moments
+│   (PixiJS)  │                   scrum board, particle effects
 └─────────────┘
 ```
 
@@ -169,7 +198,7 @@ sage-team/
 │   ├── engine/
 │   │   ├── ceo-brain.ts    # Goal decomposition via Claude API
 │   │   ├── dispatcher.ts   # Claude Code subprocess management
-│   │   ├── orchestrator.ts # Central coordinator
+│   │   ├── orchestrator.ts # Central coordinator (tick loop every 5s)
 │   │   ├── pr-manager.ts   # Git worktree + branch + merge
 │   │   └── prompt-builder.ts # Identity + skills + task prompt assembly
 │   ├── cli/
@@ -182,10 +211,12 @@ sage-team/
 │   │   └── routes/api.ts   # REST API endpoints
 │   └── web/                # Frontend (separate Vite project)
 │       └── src/
-│           ├── canvas/     # PixiJS isometric office, agents, effects
-│           ├── hooks/      # useWebSocket, useOffice, usePixiOffice
-│           ├── panels/     # AgentBar, TaskBoard, ChatPanel, PRReview, GoalInput
+│           ├── canvas/     # PixiJS isometric office, pixel-art agents, effects
+│           ├── hooks/      # useWebSocket, useOffice, usePixiOffice (wandering sim)
+│           ├── panels/     # AgentBar, TaskBoard (Scrum), ChatPanel, PRReview, GoalInput
 │           └── store.ts    # Zustand state management
+├── docs/
+│   └── USAGE-GUIDE.md     # Step-by-step usage guide
 ├── vitest.config.ts        # Test configuration
 └── package.json
 ```

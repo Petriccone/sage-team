@@ -186,23 +186,29 @@ sage-team start --goal "..." --port 8080
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│ SAGE TEAM  👑Sage 🔮Nova 🏛️Aria ⚡Dex 🌊Flux ...    │  <- Agent bar (colored dots = status)
+│ 👑Sage 🔬Nova 🏛️Aria ⚡Dex 🌊Flux 🔍Quinn ...       │  Agent bar
 ├───────────┬──────────────────────┬───────────────────┤
-│ Sprint    │                      │ Activity          │
-│           │   ISOMETRIC          │                   │
-│ ⏳ task 1 │   OFFICE             │ sage: planning..  │
-│ 🔨 task 2 │   (PixiJS canvas)    │ dex: coding...   │
-│ ✅ task 3 │                      │ quinn: testing.. │
+│ SCRUM     │                      │ ACTIVITY          │
+│ BOARD     │   ISOMETRIC OFFICE   │ FEED              │
+│           │   (PixiJS canvas)    │                   │
+│ ● Doing   │   Agents walk around │ sage: planning..  │
+│   Dex     │   rooms, sit at      │ dex: coding...    │
+│   coding  │   desks, visit       │ quinn: testing..  │
+│           │   each other         │                   │
+│ ● To Do   │                      │                   │
+│ ● Done    │                      │                   │
 │           │                      │                   │
+│ Team      │                      │                   │
+│ 👑🔬🏛️⚡🌊│                      │                   │
 ├───────────┴──────────────────────┴───────────────────┤
-│ [Enter a goal for your team...               ] [Go]  │  <- Goal input bar
+│ [Enter a goal for your team...               ] [Go]  │
 └──────────────────────────────────────────────────────┘
 ```
 
-- **Top bar**: All 11 agents with colored status dots (green = coding, blue = reviewing, etc.)
-- **Left panel**: Sprint progress — task list with status icons, collapsible
-- **Center**: Isometric office with animated agents moving between rooms
-- **Right panel**: Live activity feed — messages from agents as they work
+- **Top bar**: All 11 agents with colored status indicators
+- **Left panel**: Visual Scrum Board — task columns (In Progress, To Do, Blocked, Done) with agent cards and team avatars
+- **Center**: Isometric office with pixel-art agents that autonomously walk between 10 rooms with solid walls and doorways
+- **Right panel**: Live activity feed — timestamped messages from agents as they work
 - **Bottom bar**: Input for new goals + yellow badges for pending PRs
 
 ---

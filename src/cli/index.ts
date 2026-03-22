@@ -8,6 +8,7 @@ import { teamCommand } from './commands/team';
 import { statusCommand } from './commands/status';
 import { doctorCommand } from './commands/doctor';
 import { logsCommand } from './commands/logs';
+import { setupClaudeCommand } from './commands/setup-claude';
 
 export function buildProgram(): Command {
   const program = new Command();
@@ -25,6 +26,7 @@ export function buildProgram(): Command {
   program.addCommand(statusCommand());
   program.addCommand(doctorCommand());
   program.addCommand(logsCommand());
+  program.addCommand(setupClaudeCommand());
 
   return program;
 }

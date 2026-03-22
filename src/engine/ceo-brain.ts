@@ -1,5 +1,6 @@
 import { execSync, spawn } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import Anthropic from '@anthropic-ai/sdk';
 
 export interface CEOBrainConfig {
@@ -33,91 +34,101 @@ export interface CEOResponse {
   summary?: string;
 }
 
-// ── Smart questions based on project type detection ──────────────
-interface ProjectType {
-  keywords: string[];
-  questions: string[];
-  greeting: string;
-}
+// ── Project context scanner ──────────────────────────────────────
+function scanProjectContext(): string {
+  const cwd = process.cwd();
+  const lines: string[] = [];
 
-const PROJECT_TYPES: ProjectType[] = [
-  {
-    keywords: ['site', 'website', 'web', 'landing', 'página', 'pagina', 'homepage'],
-    greeting: 'Love it! A website project — Uma (our designer) is going to have a blast with this, and Dex is already itching to code.',
-    questions: [
-      'What tech stack do you prefer? (e.g., Next.js, React, plain HTML/CSS, WordPress)',
-      'Do you have a design style in mind? (minimalist, bold/colorful, corporate, modern)',
-      'Do you already have the content (texts, images, logo) or do we need to create placeholder content?',
-      'Where do you want to deploy this? (Vercel, Netlify, traditional hosting, etc.)',
-    ],
-  },
-  {
-    keywords: ['api', 'backend', 'server', 'rest', 'graphql', 'microservice'],
-    greeting: 'A backend project — Nova (CTO) and Dex (Senior Dev) are going to love architecting this.',
-    questions: [
-      'What language/framework do you prefer? (Node.js/Express, Python/FastAPI, Go, etc.)',
-      'What database do you need? (PostgreSQL, MongoDB, SQLite, etc.)',
-      'Do you need authentication? (JWT, OAuth, sessions)',
-      'Will this API serve a frontend, mobile app, or both?',
-    ],
-  },
-  {
-    keywords: ['app', 'mobile', 'ios', 'android', 'react native', 'flutter'],
-    greeting: 'A mobile app — exciting! Uma will design the screens while Dex and Gage handle the implementation.',
-    questions: [
-      'Which platform? (iOS only, Android only, or cross-platform)',
-      'What framework do you prefer? (React Native, Flutter, native)',
-      'Does it need a backend/API, or is it standalone?',
-      'What are the 3 most important features?',
-    ],
-  },
-  {
-    keywords: ['dashboard', 'admin', 'painel', 'analytics', 'crm'],
-    greeting: 'A dashboard project — River (Data) and Uma (Design) will make this shine. Dex will wire it all up.',
-    questions: [
-      'What data sources will this dashboard connect to?',
-      'Do you need real-time updates or is periodic refresh OK?',
-      'What are the key metrics/charts you want to display?',
-      'Who are the users? (internal team, clients, public)',
-    ],
-  },
-  {
-    keywords: ['ecommerce', 'e-commerce', 'loja', 'store', 'shop', 'produto', 'product'],
-    greeting: 'An e-commerce project — this is a big one! Nova will architect it, Uma will design the shopping experience, and Dex will build it solid.',
-    questions: [
-      'What platform do you prefer? (Shopify, custom with Stripe, WooCommerce)',
-      'How many products approximately?',
-      'Do you need inventory management, or just a simple catalog?',
-      'What payment methods? (Credit card, PayPal, Pix, etc.)',
-    ],
-  },
-];
+  // Read package.json if exists
+  const pkgPath = path.join(cwd, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      lines.push(`## package.json`);
+      lines.push(`- name: ${pkg.name || 'unknown'}`);
+      lines.push(`- description: ${pkg.description || 'none'}`);
+      if (pkg.scripts) lines.push(`- scripts: ${Object.keys(pkg.scripts).join(', ')}`);
+      if (pkg.dependencies) lines.push(`- dependencies: ${Object.keys(pkg.dependencies).join(', ')}`);
+      lines.push('');
+    } catch {}
+  }
 
-const DEFAULT_PROJECT: ProjectType = {
-  keywords: [],
-  greeting: 'Interesting project! Let me make sure I understand exactly what you need before I rally the team.',
-  questions: [
-    'What technology/framework do you want us to use?',
-    'What are the 3 most important features or requirements?',
-    'Do you have any design preferences or references?',
-    'What is the target audience for this project?',
-  ],
-};
+  // Read requirements.txt / pyproject.toml for Python projects
+  const reqPath = path.join(cwd, 'requirements.txt');
+  if (fs.existsSync(reqPath)) {
+    try {
+      const content = fs.readFileSync(reqPath, 'utf-8').trim();
+      lines.push(`## requirements.txt`);
+      lines.push(content.split('\n').slice(0, 20).join('\n'));
+      lines.push('');
+    } catch {}
+  }
 
-function detectProjectType(goal: string): ProjectType {
-  const lower = goal.toLowerCase();
-  for (const pt of PROJECT_TYPES) {
-    if (pt.keywords.some(kw => lower.includes(kw))) {
-      return pt;
+  const pyprojectPath = path.join(cwd, 'pyproject.toml');
+  if (fs.existsSync(pyprojectPath)) {
+    try {
+      const content = fs.readFileSync(pyprojectPath, 'utf-8');
+      lines.push(`## pyproject.toml (first 30 lines)`);
+      lines.push(content.split('\n').slice(0, 30).join('\n'));
+      lines.push('');
+    } catch {}
+  }
+
+  // Read README if exists (first 50 lines)
+  for (const readme of ['README.md', 'readme.md', 'README.txt', 'README']) {
+    const readmePath = path.join(cwd, readme);
+    if (fs.existsSync(readmePath)) {
+      try {
+        const content = fs.readFileSync(readmePath, 'utf-8');
+        lines.push(`## ${readme} (first 50 lines)`);
+        lines.push(content.split('\n').slice(0, 50).join('\n'));
+        lines.push('');
+      } catch {}
+      break;
     }
   }
-  return DEFAULT_PROJECT;
+
+  // Directory tree (top level + 1 depth)
+  try {
+    const entries = fs.readdirSync(cwd, { withFileTypes: true });
+    const relevant = entries.filter(e =>
+      !e.name.startsWith('.') &&
+      !['node_modules', '__pycache__', 'dist', 'build', '.git', '.sage-team', 'venv', '.venv'].includes(e.name)
+    );
+    lines.push('## Project structure');
+    for (const entry of relevant.slice(0, 30)) {
+      const prefix = entry.isDirectory() ? '📁' : '📄';
+      lines.push(`${prefix} ${entry.name}`);
+      if (entry.isDirectory()) {
+        try {
+          const sub = fs.readdirSync(path.join(cwd, entry.name), { withFileTypes: true });
+          for (const s of sub.slice(0, 10)) {
+            const sp = s.isDirectory() ? '📁' : '📄';
+            lines.push(`  ${sp} ${s.name}`);
+          }
+          if (sub.length > 10) lines.push(`  ... and ${sub.length - 10} more`);
+        } catch {}
+      }
+    }
+    lines.push('');
+  } catch {}
+
+  // Git info
+  try {
+    const branch = execSync('git branch --show-current', { cwd, encoding: 'utf-8', timeout: 3000 }).trim();
+    const lastCommits = execSync('git log --oneline -5', { cwd, encoding: 'utf-8', timeout: 3000 }).trim();
+    lines.push('## Git');
+    lines.push(`Branch: ${branch}`);
+    lines.push(`Recent commits:\n${lastCommits}`);
+    lines.push('');
+  } catch {}
+
+  return lines.join('\n');
 }
 
 // ── Claude Code spawn (only used for decomposition) ─────────────
 function findClaudeExe(): string {
   if (process.platform === 'win32') {
-    const fs = require('fs');
     const exePaths = [
       path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe'),
       path.join(process.env.LOCALAPPDATA || '', 'Programs', 'claude', 'claude.exe'),
@@ -179,18 +190,42 @@ function runClaude(systemPrompt: string, userPrompt: string): Promise<string> {
   });
 }
 
+const CEO_SYSTEM_PROMPT = `You are Sage, CEO of Sage Team — an AI-powered autonomous software company with 11 agents.
+
+Your personality: Confident, warm, decisive. You speak naturally and directly. You refer to your team members by name.
+
+Your team:
+- Nova (CTO) — technical strategy
+- Aria (Architect) — system design
+- Dex (Senior Dev) — core implementation
+- Flux (Fullstack Dev) — full-stack features
+- Quinn (QA Lead) — testing & quality
+- Gage (DevOps) — infrastructure & deployment
+- Morgan (Product Manager) — product strategy
+- Uma (UX Designer) — design & user experience
+- River (Scrum Master) — process & coordination
+- Atlas (Data Engineer) — data & analytics
+
+CRITICAL RULES:
+1. You ALWAYS read the project context provided to understand what already exists in the current directory
+2. If there is existing code, you DO NOT propose building from scratch — you work WITH the existing project
+3. You ask relevant questions based on what you actually see in the project
+4. You respond in the SAME LANGUAGE the user writes in (Portuguese → Portuguese, English → English, etc.)
+5. Keep responses concise and natural — you're a CEO, not a chatbot
+6. When the user asks to analyze/review an existing project, you plan analysis tasks, not creation tasks`;
+
 // ── CEO Brain ───────────────────────────────────────────────────
 export class CEOBrain {
   private config: CEOBrainConfig;
   private client: Anthropic | null = null;
   private conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [];
-  private collectedAnswers: string[] = [];
-  private detectedProject: ProjectType | null = null;
+  private projectContext: string = '';
+  private projectScanned: boolean = false;
 
   constructor(config: CEOBrainConfig) {
     this.config = config;
     if (config.apiKey === 'test') {
-      // Test mode
+      // Test mode — no client
     } else if (process.env.ANTHROPIC_API_KEY) {
       try {
         this.client = new Anthropic();
@@ -200,48 +235,112 @@ export class CEOBrain {
     }
   }
 
+  private ensureProjectContext(): string {
+    if (!this.projectScanned) {
+      this.projectContext = scanProjectContext();
+      this.projectScanned = true;
+    }
+    return this.projectContext;
+  }
+
   /**
-   * Chat with the user — INSTANT, no AI needed.
-   * Uses smart project detection to ask relevant questions.
-   * Only decomposition (later) needs AI.
+   * Chat with the user — uses Claude API if available, template fallback otherwise.
    */
   async chat(userMessage: string): Promise<CEOResponse> {
     this.conversationHistory.push({ role: 'user', content: userMessage });
-
+    const context = this.ensureProjectContext();
     const messageCount = this.conversationHistory.filter(m => m.role === 'user').length;
 
+    // Try AI-powered chat first
+    if (this.client) {
+      try {
+        return await this.chatWithAI(userMessage, context, messageCount);
+      } catch {
+        // Fall through to template
+      }
+    }
+
+    // Template fallback
+    return this.chatWithTemplate(userMessage, messageCount);
+  }
+
+  private async chatWithAI(userMessage: string, projectContext: string, messageCount: number): Promise<CEOResponse> {
+    const systemPrompt = `${CEO_SYSTEM_PROMPT}
+
+## Current Project Context
+${projectContext || 'Empty directory — no existing project detected.'}
+
+## Response Rules
+- On FIRST message: Greet the user, acknowledge what you see in the project, ask 2-3 targeted questions. Respond as JSON: {"type":"question","message":"your greeting","questions":["q1","q2"]}
+- On SECOND message or when user says to proceed: Signal ready. Respond as JSON: {"type":"ready","message":"your confirmation","summary":"concise goal summary"}
+- ALWAYS respond with valid JSON only, no markdown wrapping`;
+
+    const messages = this.conversationHistory.map(m => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }));
+
+    const response = await this.client!.messages.create({
+      model: this.config.model,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages,
+    });
+
+    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    this.conversationHistory.push({ role: 'assistant', content: text });
+
+    // Parse the JSON response
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          type: parsed.type || (messageCount >= 2 ? 'ready' : 'question'),
+          message: parsed.message || text,
+          questions: parsed.questions,
+          summary: parsed.summary,
+        };
+      }
+    } catch {}
+
+    // If JSON parsing fails, treat as ready after 2+ messages
+    if (messageCount >= 2) {
+      const summary = this.conversationHistory.filter(m => m.role === 'user').map(m => m.content).join(' | ');
+      return { type: 'ready', message: text, summary };
+    }
+    return { type: 'question', message: text };
+  }
+
+  private chatWithTemplate(userMessage: string, messageCount: number): CEOResponse {
     if (messageCount === 1) {
-      // First message — detect project type and ask questions
-      this.detectedProject = detectProjectType(userMessage);
-      const response: CEOResponse = {
-        type: 'question',
-        message: this.detectedProject.greeting,
-        questions: this.detectedProject.questions,
-      };
+      const context = this.ensureProjectContext();
+      const hasExistingProject = context.includes('package.json') || context.includes('requirements.txt') || context.includes('pyproject.toml');
+
+      let greeting: string;
+      let questions: string[];
+
+      if (hasExistingProject) {
+        greeting = 'I can see there\'s already an existing project here. Let me understand what you need.';
+        questions = [
+          'What specific changes or improvements do you want the team to work on?',
+          'Are there any areas of the codebase that need special attention?',
+          'What\'s the priority — new features, bug fixes, refactoring, or something else?',
+        ];
+      } else {
+        greeting = 'Interesting project! Let me make sure I understand exactly what you need before I rally the team.';
+        questions = [
+          'What technology/framework do you want us to use?',
+          'What are the 3 most important features or requirements?',
+          'Do you have any design preferences or references?',
+        ];
+      }
+
+      const response: CEOResponse = { type: 'question', message: greeting, questions };
       this.conversationHistory.push({ role: 'assistant', content: JSON.stringify(response) });
       return response;
     }
 
-    // Subsequent messages — user is answering questions
-    this.collectedAnswers.push(userMessage);
-
-    if (messageCount === 2) {
-      // Second message — we have enough context, Sage is ready
-      const goalSummary = this.conversationHistory
-        .filter(m => m.role === 'user')
-        .map(m => m.content)
-        .join(' | ');
-
-      const response: CEOResponse = {
-        type: 'ready',
-        message: `Perfect, I have a clear picture now. Let me call the team together — Nova will handle the architecture, Uma will work on the design, and Dex will lead the implementation. I'll have Morgan coordinate everything. Let's go!`,
-        summary: goalSummary,
-      };
-      this.conversationHistory.push({ role: 'assistant', content: JSON.stringify(response) });
-      return response;
-    }
-
-    // 3+ messages — still ready
     const goalSummary = this.conversationHistory
       .filter(m => m.role === 'user')
       .map(m => m.content)
@@ -249,7 +348,9 @@ export class CEOBrain {
 
     const response: CEOResponse = {
       type: 'ready',
-      message: `Got it! Adding that to the plan. Let me rally the team now.`,
+      message: messageCount === 2
+        ? `Got it! I have a clear picture now. Let me call the team together and plan the sprint.`
+        : `Adding that to the plan. Let me rally the team now.`,
       summary: goalSummary,
     };
     this.conversationHistory.push({ role: 'assistant', content: JSON.stringify(response) });
@@ -258,8 +359,8 @@ export class CEOBrain {
 
   resetConversation(): void {
     this.conversationHistory = [];
-    this.collectedAnswers = [];
-    this.detectedProject = null;
+    this.projectScanned = false;
+    this.projectContext = '';
   }
 
   getConversationContext(): string {
@@ -277,15 +378,21 @@ export class CEOBrain {
       ? `## Conversation Context\n${context}\n\n`
       : '';
 
+    const projectBlock = this.ensureProjectContext();
+
     return `You are Sage, CEO of an AI software company. Decompose this goal into a sprint with concrete tasks.
 
 ${contextBlock}## Goal
 ${goal}
 
+## Current Project (files in working directory)
+${projectBlock || 'Empty directory — new project.'}
+
 ## Available Team
 ${agentList}
 
 ## Rules
+- CRITICAL: If there is existing code, tasks must work WITH the existing codebase, NOT create from scratch
 - Each task must be assignable to exactly ONE agent
 - Tasks should be 2-5 minutes of focused work each
 - Use depends_on to express task dependencies (reference by index: "task-0", "task-1", etc.)
@@ -293,6 +400,7 @@ ${agentList}
 - Priority: 1=critical, 2=high, 3=medium, 4=low, 5=nice-to-have
 - Order tasks by dependency chain: independent tasks first
 - Include description with enough context for the agent to work autonomously
+- Task descriptions must reference specific files/modules from the project when working on existing code
 
 ## Response Format
 Respond with ONLY valid JSON (no markdown, no explanation):
@@ -302,7 +410,7 @@ Respond with ONLY valid JSON (no markdown, no explanation):
   "tasks": [
     {
       "title": "Task title",
-      "description": "Detailed description",
+      "description": "Detailed description referencing specific files",
       "assignee": "agent-id",
       "priority": 1,
       "required_skills": ["sp-tdd-cycle"],
@@ -348,15 +456,45 @@ Respond with ONLY valid JSON (no markdown, no explanation):
     };
   }
 
-  async decompose(goal: string, _roster: AgentRoster[]): Promise<DecompositionResult> {
-    // Template-based decomposition — instant, works for everyone, no AI needed
+  async decompose(goal: string, roster: AgentRoster[]): Promise<DecompositionResult> {
+    // Try AI-powered decomposition first
+    if (this.client) {
+      try {
+        return await this.decomposeWithAI(goal, roster);
+      } catch {
+        // Fall through to template
+      }
+    }
+
+    // Template fallback
     return this.decomposeFromTemplate(goal);
   }
 
-  /** Template-based decomposition — instant, no AI. Always returns a result. */
+  private async decomposeWithAI(goal: string, roster: AgentRoster[]): Promise<DecompositionResult> {
+    const context = this.getConversationContext();
+    const prompt = this.buildDecompositionPrompt(goal, roster, context || undefined);
+
+    const response = await this.client!.messages.create({
+      model: this.config.model,
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const text = response.content[0].type === 'text' ? response.content[0].text : '';
+    return this.parseDecomposition(text);
+  }
+
+  /** Template-based decomposition — instant, no AI. Fallback only. */
   private decomposeFromTemplate(goal: string): DecompositionResult {
     const allContext = this.conversationHistory.map(m => m.content).join(' ').toLowerCase();
     const combined = `${goal.toLowerCase()} ${allContext}`;
+    const projectContext = this.ensureProjectContext();
+    const hasExistingProject = projectContext.includes('package.json') || projectContext.includes('requirements.txt') || projectContext.includes('pyproject.toml');
+
+    // If existing project detected, use analysis/improvement template
+    if (hasExistingProject && this.isAnalysisRequest(combined)) {
+      return this.analysisSprintTemplate(goal, projectContext);
+    }
 
     if (this.matchesKeywords(combined, ['site', 'website', 'landing', 'página', 'pagina', 'homepage', 'web page', 'webpage'])) {
       return this.websiteSprintTemplate(goal, combined);
@@ -364,16 +502,13 @@ Respond with ONLY valid JSON (no markdown, no explanation):
     if (this.matchesKeywords(combined, ['rest api', 'graphql', 'backend api', 'api endpoint', 'microservice', 'server api'])) {
       return this.apiSprintTemplate(goal);
     }
-    if (this.matchesKeywords(combined, ['app', 'mobile', 'ios', 'android', 'react native', 'flutter', 'aplicativo'])) {
-      return this.mobileSprintTemplate(goal);
-    }
     if (this.matchesKeywords(combined, ['dashboard', 'admin', 'painel', 'analytics', 'crm', 'portal'])) {
       return this.dashboardSprintTemplate(goal);
     }
     if (this.matchesKeywords(combined, ['ecommerce', 'e-commerce', 'loja', 'store', 'shop', 'produto', 'product', 'cart', 'carrinho'])) {
       return this.ecommerceSprintTemplate(goal);
     }
-    if (this.matchesKeywords(combined, ['cli', 'command line', 'terminal', 'tool', 'script', 'automation', 'ferramenta'])) {
+    if (this.matchesKeywords(combined, ['cli', 'command line', 'terminal', 'tool', 'script', 'ferramenta'])) {
       return this.cliToolSprintTemplate(goal);
     }
     if (this.matchesKeywords(combined, ['bot', 'chatbot', 'discord', 'telegram', 'slack', 'whatsapp'])) {
@@ -382,12 +517,57 @@ Respond with ONLY valid JSON (no markdown, no explanation):
     if (this.matchesKeywords(combined, ['game', 'jogo', 'gaming', 'gameplay'])) {
       return this.gameSprintTemplate(goal);
     }
-    // Generic fallback — works for ANY project
+    // Don't match 'app'/'mobile' too eagerly — only if clearly about mobile
+    if (this.matchesKeywords(combined, ['mobile app', 'ios app', 'android app', 'react native', 'flutter app', 'aplicativo mobile'])) {
+      return this.mobileSprintTemplate(goal);
+    }
+
+    // If existing project, default to improvement sprint
+    if (hasExistingProject) {
+      return this.improvementSprintTemplate(goal, projectContext);
+    }
+
+    // Generic fallback for new projects
     return this.genericSprintTemplate(goal);
+  }
+
+  private isAnalysisRequest(text: string): boolean {
+    return this.matchesKeywords(text, [
+      'analis', 'review', 'revis', 'estado', 'status', 'audit', 'verificar', 'check',
+      'como est', 'what is the', 'how is', 'diagnos', 'inspect', 'avaliar', 'evaluate',
+    ]);
   }
 
   private matchesKeywords(text: string, keywords: string[]): boolean {
     return keywords.some(kw => text.includes(kw));
+  }
+
+  /** Template for analyzing an existing project */
+  private analysisSprintTemplate(goal: string, projectContext: string): DecompositionResult {
+    return {
+      sprint: { name: 'Project Analysis', goal: `Analyze and review: ${goal.slice(0, 100)}` },
+      tasks: [
+        { title: 'Analyze project architecture and code quality', description: `Read all source files in the project directory. Analyze the architecture, code organization, patterns used, and overall quality. Identify strengths and weaknesses. Project context:\n${projectContext.slice(0, 500)}`, assignee: 'aria', priority: 1, required_skills: [], depends_on: [] },
+        { title: 'Review tests and code coverage', description: `Run existing tests and analyze coverage. Identify untested code paths, fragile tests, and testing gaps. Check test quality and best practices.`, assignee: 'quinn', priority: 1, required_skills: [], depends_on: [] },
+        { title: 'Audit dependencies and security', description: `Review all dependencies for outdated versions, known vulnerabilities, and unnecessary packages. Check for security issues in the codebase.`, assignee: 'gage', priority: 2, required_skills: [], depends_on: [] },
+        { title: 'Review documentation and developer experience', description: `Check README, inline docs, API documentation. Evaluate setup process, developer onboarding experience, and documentation completeness.`, assignee: 'atlas', priority: 2, required_skills: [], depends_on: ['task-0'] },
+        { title: 'Compile analysis report with recommendations', description: `Gather findings from all team members and compile a comprehensive report: what's working well, what needs improvement, and prioritized next steps.`, assignee: 'morgan', priority: 1, required_skills: [], depends_on: ['task-0', 'task-1', 'task-2', 'task-3'] },
+      ],
+    };
+  }
+
+  /** Template for improving an existing project */
+  private improvementSprintTemplate(goal: string, projectContext: string): DecompositionResult {
+    return {
+      sprint: { name: 'Project Improvement', goal: `Improve: ${goal.slice(0, 100)}` },
+      tasks: [
+        { title: 'Review existing codebase and plan changes', description: `Read the existing source code to understand the current architecture before making any changes. Plan the implementation approach. Project context:\n${projectContext.slice(0, 500)}\n\nGoal: ${goal.slice(0, 300)}`, assignee: 'aria', priority: 1, required_skills: [], depends_on: [] },
+        { title: 'Implement primary changes', description: `Make the core changes requested by the user. Work with the existing code — modify, extend, or refactor as needed. Do not rewrite from scratch. Goal: ${goal.slice(0, 300)}`, assignee: 'dex', priority: 1, required_skills: [], depends_on: ['task-0'] },
+        { title: 'Implement supporting changes', description: `Handle any secondary modifications, configuration updates, or infrastructure changes needed to support the primary work.`, assignee: 'gage', priority: 2, required_skills: [], depends_on: ['task-0'] },
+        { title: 'Update tests for changes', description: `Add or update tests to cover the new/modified functionality. Ensure existing tests still pass.`, assignee: 'quinn', priority: 2, required_skills: [], depends_on: ['task-1'] },
+        { title: 'Update documentation', description: `Update README, comments, and any documentation to reflect the changes made.`, assignee: 'atlas', priority: 3, required_skills: [], depends_on: ['task-1'] },
+      ],
+    };
   }
 
   private websiteSprintTemplate(goal: string, context: string): DecompositionResult {
@@ -400,70 +580,14 @@ Respond with ONLY valid JSON (no markdown, no explanation):
     return {
       sprint: { name: sprintName, goal: `Build a professional website: ${goal.slice(0, 100)}` },
       tasks: [
-        {
-          title: 'Define project architecture and tech stack',
-          description: `Architect the website using ${framework} with ${styling}. Define folder structure, routing strategy, and component hierarchy. Create the project scaffold with all necessary configuration files.`,
-          assignee: 'aria',
-          priority: 1,
-          required_skills: [],
-          depends_on: [],
-        },
-        {
-          title: 'Design UI/UX wireframes and component library',
-          description: `Design the visual style for the website: color palette, typography, spacing, and component designs. Create reusable UI components (Header, Footer, Hero, Card, Button, CTA sections). Ensure responsive design for mobile, tablet, and desktop. Context: ${goal.slice(0, 200)}`,
-          assignee: 'uma',
-          priority: 1,
-          required_skills: [],
-          depends_on: [],
-        },
-        {
-          title: 'Build Home page with Hero, Features, and CTA',
-          description: `Implement the Home/Landing page with: hero section with headline and call-to-action, services overview section, testimonials preview, and contact CTA. Use ${framework} with ${styling}. Ensure responsive design.`,
-          assignee: 'dex',
-          priority: 1,
-          required_skills: [],
-          depends_on: ['task-0'],
-        },
-        {
-          title: 'Build Services and About pages',
-          description: `Create the Services page (list all services with descriptions, icons, and CTAs) and the About page (company story, team, mission/values). Use ${framework} with ${styling}. Include placeholder content.`,
-          assignee: 'gage',
-          priority: 2,
-          required_skills: [],
-          depends_on: ['task-0'],
-        },
-        {
-          title: 'Build Gallery and Testimonials pages',
-          description: `Create the Gallery page (grid of project images with lightbox/modal) and Testimonials page (customer reviews with ratings and quotes). Use placeholder images and content.`,
-          assignee: 'gage',
-          priority: 2,
-          required_skills: [],
-          depends_on: ['task-0'],
-        },
-        {
-          title: 'Build Contact page with form',
-          description: `Create the Contact page with: contact form (name, email, phone, message, service type dropdown), company address/map placeholder, phone number, email, business hours. Form should validate inputs client-side.`,
-          assignee: 'dex',
-          priority: 2,
-          required_skills: [],
-          depends_on: ['task-0'],
-        },
-        {
-          title: 'SEO optimization and metadata',
-          description: `Add proper SEO: meta tags (title, description, OpenGraph), semantic HTML structure, alt tags for images, sitemap.xml, robots.txt. Optimize for local SEO if applicable. Add structured data (JSON-LD) for local business.`,
-          assignee: 'atlas',
-          priority: 3,
-          required_skills: [],
-          depends_on: ['task-2', 'task-3'],
-        },
-        {
-          title: 'Testing and quality review',
-          description: `Test all pages: responsive design on mobile/tablet/desktop, navigation works correctly, form validation works, images load properly, no broken links, accessibility basics (contrast, alt tags, keyboard nav). Cross-browser check.`,
-          assignee: 'quinn',
-          priority: 3,
-          required_skills: [],
-          depends_on: ['task-2', 'task-3', 'task-4', 'task-5'],
-        },
+        { title: 'Define project architecture and tech stack', description: `Architect the website using ${framework} with ${styling}. Define folder structure, routing strategy, and component hierarchy. Create the project scaffold with all necessary configuration files.`, assignee: 'aria', priority: 1, required_skills: [], depends_on: [] },
+        { title: 'Design UI/UX wireframes and component library', description: `Design the visual style for the website: color palette, typography, spacing, and component designs. Create reusable UI components (Header, Footer, Hero, Card, Button, CTA sections). Ensure responsive design for mobile, tablet, and desktop. Context: ${goal.slice(0, 200)}`, assignee: 'uma', priority: 1, required_skills: [], depends_on: [] },
+        { title: 'Build Home page with Hero, Features, and CTA', description: `Implement the Home/Landing page with: hero section with headline and call-to-action, services overview section, testimonials preview, and contact CTA. Use ${framework} with ${styling}. Ensure responsive design.`, assignee: 'dex', priority: 1, required_skills: [], depends_on: ['task-0'] },
+        { title: 'Build Services and About pages', description: `Create the Services page (list all services with descriptions, icons, and CTAs) and the About page (company story, team, mission/values). Use ${framework} with ${styling}. Include placeholder content.`, assignee: 'gage', priority: 2, required_skills: [], depends_on: ['task-0'] },
+        { title: 'Build Gallery and Testimonials pages', description: `Create the Gallery page (grid of project images with lightbox/modal) and Testimonials page (customer reviews with ratings and quotes). Use placeholder images and content.`, assignee: 'gage', priority: 2, required_skills: [], depends_on: ['task-0'] },
+        { title: 'Build Contact page with form', description: `Create the Contact page with: contact form (name, email, phone, message, service type dropdown), company address/map placeholder, phone number, email, business hours. Form should validate inputs client-side.`, assignee: 'dex', priority: 2, required_skills: [], depends_on: ['task-0'] },
+        { title: 'SEO optimization and metadata', description: `Add proper SEO: meta tags (title, description, OpenGraph), semantic HTML structure, alt tags for images, sitemap.xml, robots.txt. Optimize for local SEO if applicable. Add structured data (JSON-LD) for local business.`, assignee: 'atlas', priority: 3, required_skills: [], depends_on: ['task-2', 'task-3'] },
+        { title: 'Testing and quality review', description: `Test all pages: responsive design on mobile/tablet/desktop, navigation works correctly, form validation works, images load properly, no broken links, accessibility basics (contrast, alt tags, keyboard nav). Cross-browser check.`, assignee: 'quinn', priority: 3, required_skills: [], depends_on: ['task-2', 'task-3', 'task-4', 'task-5'] },
       ],
     };
   }
@@ -569,7 +693,7 @@ Respond with ONLY valid JSON (no markdown, no explanation):
     };
   }
 
-  /** Generic fallback template — works for ANY project type */
+  /** Generic fallback template — works for ANY new project type */
   private genericSprintTemplate(goal: string): DecompositionResult {
     return {
       sprint: { name: 'Project Sprint', goal: `Build: ${goal.slice(0, 100)}` },

@@ -1,4 +1,4 @@
-# Sage Team v3.6
+# Sage Team v3.7
 
 > AI-Powered Autonomous Software Company — 11 agents execute real code via Claude Code, with a PixiJS isometric office visualization and native Claude Code MCP integration.
 

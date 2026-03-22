@@ -127,31 +127,44 @@ function scanProjectContext(): string {
 }
 
 // ── Claude Code spawn (only used for decomposition) ─────────────
-function findClaudeExe(): string {
+function findClaudeExe(): { command: string; prefix: string[] } {
   if (process.platform === 'win32') {
+    // 1. Native .exe
     const exePaths = [
       path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe'),
       path.join(process.env.LOCALAPPDATA || '', 'Programs', 'claude', 'claude.exe'),
     ];
     for (const p of exePaths) {
-      if (fs.existsSync(p)) return p;
+      if (fs.existsSync(p)) return { command: p, prefix: [] };
     }
+
+    // 2. npm global cli.js (run with node)
+    const npmCliJs = path.join(
+      process.env.APPDATA || '',
+      'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js'
+    );
+    if (fs.existsSync(npmCliJs)) {
+      return { command: process.execPath, prefix: [npmCliJs] };
+    }
+
+    // 3. where command
     try {
       const lines = execSync('where claude.exe', { encoding: 'utf-8' }).trim().split('\n');
       const exeLine = lines.find((l: string) => l.trim().endsWith('.exe'));
-      if (exeLine) return exeLine.trim();
+      if (exeLine) return { command: exeLine.trim(), prefix: [] };
     } catch { /* continue */ }
   }
-  return 'claude';
+  return { command: 'claude', prefix: [] };
 }
 
 function runClaude(systemPrompt: string, userPrompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const claude = findClaudeExe();
+    const { command, prefix } = findClaudeExe();
     const env = { ...process.env };
     delete (env as any).CLAUDECODE;
 
-    const proc = spawn(claude, [
+    const proc = spawn(command, [
+      ...prefix,
       '--print',
       '--dangerously-skip-permissions',
       '--output-format', 'text',

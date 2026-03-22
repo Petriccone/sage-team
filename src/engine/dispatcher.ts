@@ -56,9 +56,10 @@ export class Dispatcher extends EventEmitter {
   private findClaude(): string {
     if (this.claudePath) return this.claudePath;
 
+    const fs = require('fs');
+
     if (process.platform === 'win32') {
-      // Prefer native .exe — does NOT need cmd.exe / shell: true
-      const fs = require('fs');
+      // 1. Try native .exe installs
       const exePaths = [
         path.join(process.env.USERPROFILE || '', '.local', 'bin', 'claude.exe'),
         path.join(process.env.LOCALAPPDATA || '', 'Programs', 'claude', 'claude.exe'),
@@ -67,7 +68,18 @@ export class Dispatcher extends EventEmitter {
         if (fs.existsSync(p)) { this.claudePath = p; return this.claudePath; }
       }
 
-      // Fallback: try where command (which uses cmd.exe — may fail in MCP context)
+      // 2. Try npm global cli.js directly (avoids .cmd/.sh issues on Windows)
+      const npmGlobalCliJs = path.join(
+        process.env.APPDATA || '',
+        'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js'
+      );
+      if (fs.existsSync(npmGlobalCliJs)) {
+        // Use 'node' as command and cli.js as first arg
+        this.claudePath = npmGlobalCliJs;
+        return this.claudePath;
+      }
+
+      // 3. Try where command
       try {
         const lines = execSync('where claude.exe', { encoding: 'utf-8' }).trim().split('\n');
         const exeLine = lines.find((l: string) => l.trim().endsWith('.exe'));
@@ -80,6 +92,11 @@ export class Dispatcher extends EventEmitter {
     return this.claudePath;
   }
 
+  /** Check if the found claude path is a cli.js file (needs node to run) */
+  private isCliJs(): boolean {
+    return this.findClaude().endsWith('.js');
+  }
+
   availableSlots(): number {
     return this.config.maxConcurrent - this.running.size;
   }
@@ -89,7 +106,7 @@ export class Dispatcher extends EventEmitter {
   }
 
   buildCommand(input: SpawnCommandInput): SpawnCommand {
-    const args = [
+    const claudeArgs = [
       '--print',
       '--output-format', 'stream-json',
       '--verbose',
@@ -99,9 +116,20 @@ export class Dispatcher extends EventEmitter {
       input.taskPrompt, // positional argument (last)
     ];
 
+    const claudePath = this.findClaude();
+
+    // If claude is a .js file (npm global install), run it with node
+    if (claudePath.endsWith('.js')) {
+      return {
+        command: process.execPath, // node
+        args: [claudePath, ...claudeArgs],
+        cwd: input.cwd,
+      };
+    }
+
     return {
-      command: this.findClaude(),
-      args,
+      command: claudePath,
+      args: claudeArgs,
       cwd: input.cwd,
     };
   }

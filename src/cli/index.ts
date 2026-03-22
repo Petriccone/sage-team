@@ -16,7 +16,7 @@ export function buildProgram(): Command {
   program
     .name('sage-team')
     .description('AI-powered autonomous software company')
-    .version('3.7.0');
+    .version('3.7.1');
 
   program.addCommand(initCommand());
   program.addCommand(startCommand());

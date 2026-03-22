@@ -97,10 +97,14 @@ export class Orchestrator extends EventEmitter {
       this.emitEvent('agent:status', agentId, { status: 'idle' });
     });
 
+    this.dispatcher.on('agent-error', ({ agentId, taskId, error }) => {
+      this.emitEvent('agent:error', agentId, { taskId, error: (error || '').slice(0, 300) });
+    });
+
     this.dispatcher.on('agent-failed', ({ agentId, taskId, exitCode, stderr }) => {
       this.tasks.updateStatus(taskId, 'failed');
       this.agents.clearTask(agentId);
-      this.emitEvent('task:failed', agentId, { taskId, exitCode, stderr: stderr || '' });
+      this.emitEvent('task:failed', agentId, { taskId, exitCode, stderr: (stderr || '').slice(0, 500) });
       // Reset agent to idle — task failed
       this.agents.updateStatus(agentId, 'idle');
       this.emitEvent('agent:status', agentId, { status: 'idle' });
@@ -312,8 +316,8 @@ export class Orchestrator extends EventEmitter {
             cwd = path.join(process.cwd(), cwd);
           }
         } catch (err: any) {
-          // No git or worktree failed — silently fall back to direct mode
-          this.emitEvent('system', agentId, { message: `Using project dir (no git worktree)` });
+          // No git or worktree failed — fall back to direct mode
+          this.emitEvent('system', agentId, { message: `Worktree failed (${err.message?.slice(0, 80)}), using project dir` });
         }
       }
 
@@ -322,6 +326,7 @@ export class Orchestrator extends EventEmitter {
       this.agents.assignTask(agentId, task.id);
 
       // Spawn agent
+      this.emitEvent('system', agentId, { message: `Spawning ${persona.name} in ${cwd.slice(-60)}` });
       this.dispatcher.spawnAgent(
         agentId,
         task.id,
@@ -329,7 +334,11 @@ export class Orchestrator extends EventEmitter {
         `Execute this task: ${task.title}\n\n${task.description || ''}`,
         cwd,
       ).catch(err => {
-        this.emitEvent('system', agentId, { message: `Failed to spawn: ${err.message}` });
+        this.emitEvent('system', agentId, { message: `Failed to spawn ${persona.name}: ${err.message}` });
+        this.tasks.updateStatus(task.id, 'failed');
+        this.agents.clearTask(agentId);
+        this.agents.updateStatus(agentId, 'idle');
+        this.emitEvent('agent:status', agentId, { status: 'idle' });
       });
 
       this.emitEvent('task:assigned', agentId, { taskId: task.id });
